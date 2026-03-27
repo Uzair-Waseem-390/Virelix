@@ -1,23 +1,19 @@
 """
 accounts/serializers.py
 ────────────────────────
-Input validation + output shaping.
-No business logic – that belongs in services.
+Input validation + output shaping. Zero business logic here.
 """
 
 from rest_framework import serializers
-
-from accounts.models import User
-from accounts.services.crypto import decrypt_api_key
+from accounts.models import User, Role
 
 
 # ── Output ────────────────────────────────────────────────────────────────────
 
 class UserSerializer(serializers.ModelSerializer):
     """
-    Safe read-only representation of a user.
-    gemini_api_key is never exposed in plain text; a boolean flag is
-    returned instead so the frontend knows whether a key is configured.
+    Safe read representation. gemini_api_key is NEVER returned in plaintext;
+    only a boolean `has_gemini_key` is exposed.
     """
     has_gemini_key = serializers.SerializerMethodField()
 
@@ -38,39 +34,73 @@ class UserSerializer(serializers.ModelSerializer):
         return obj.has_gemini_key
 
 
+class ProjectMemberSerializer(serializers.ModelSerializer):
+    """
+    Lightweight serializer for manager/staff users (no gemini key field).
+    Used when listing project members.
+    """
+    class Meta:
+        model  = User
+        fields = ["id", "email", "role", "is_active", "created_at"]
+        read_only_fields = fields
+
+
 # ── Registration ──────────────────────────────────────────────────────────────
 
 class RegisterSerializer(serializers.Serializer):
-    email           = serializers.EmailField()
-    password        = serializers.CharField(write_only=True, min_length=8)
-    gemini_api_key  = serializers.CharField(
+    email          = serializers.EmailField()
+    password       = serializers.CharField(write_only=True, min_length=8)
+    gemini_api_key = serializers.CharField(
         write_only=True,
         required=True,
         allow_blank=False,
-        help_text="Gemini API key – required, will be encrypted at rest.",
+        help_text="Gemini API key - required, encrypted at rest.",
     )
 
     def validate_email(self, value: str) -> str:
         return value.lower().strip()
 
 
-# ── Update (partial) ──────────────────────────────────────────────────────────
+# ── Admin self-update ─────────────────────────────────────────────────────────
 
-class UpdateUserSerializer(serializers.Serializer):
+class UpdateAdminSerializer(serializers.Serializer):
+    """Admin updating their own email and/or Gemini key."""
     email          = serializers.EmailField(required=False)
     gemini_api_key = serializers.CharField(
         required=False,
-        allow_blank=True,  # blank string = clear the key
+        allow_blank=True,
         write_only=True,
-        help_text="Pass an empty string to remove the stored key.",
+        help_text="Pass empty string to remove the stored key.",
     )
 
     def validate_email(self, value: str) -> str:
         return value.lower().strip()
 
 
-# ── Password change ───────────────────────────────────────────────────────────
+# ── Project member update (admin changing employee credentials) ───────────────
+
+class UpdateMemberSerializer(serializers.Serializer):
+    """Admin updating a manager/staff email or password."""
+    email    = serializers.EmailField(required=False)
+    password = serializers.CharField(write_only=True, min_length=8, required=False)
+
+    def validate_email(self, value: str) -> str:
+        return value.lower().strip()
+
+    def validate(self, data):
+        if not data:
+            raise serializers.ValidationError("Provide at least one field to update.")
+        return data
+
+
+# ── Password operations ───────────────────────────────────────────────────────
 
 class ChangePasswordSerializer(serializers.Serializer):
+    """User changing their own password - old password required."""
     old_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True, min_length=8)
+
+
+class AdminSetPasswordSerializer(serializers.Serializer):
+    """Admin setting a new password for a manager/staff - no old password."""
     new_password = serializers.CharField(write_only=True, min_length=8)
