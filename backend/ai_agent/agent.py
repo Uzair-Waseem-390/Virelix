@@ -64,12 +64,22 @@ Rules (follow strictly, no exceptions):
   - Output ONLY a JSON object with exactly three keys: "products", "inventory", "sales".
   - Each key must be a boolean: true or false.
   - Do NOT add any other keys, explanations, or text outside the JSON.
-  - Do NOT guess. If the description is vague, default to false.
   - A business that sells products almost always needs inventory too.
   - A business that has sales almost always needs products too.
+  - If the description mentions "ERP", "enterprise", "business management", or "management system"
+    for a business that deals with goods/trade, enable all three modules.
+  - Only return all-false if the business is clearly non-commercial (e.g. HR-only, internal IT,
+    non-profit admin) with no products, stock, or customer transactions involved.
+  - When in doubt for a commercial business, lean towards enabling relevant modules.
 
 Examples:
   Description: "We run a retail clothing store"
+  Output: {"products": true, "inventory": true, "sales": true}
+
+  Description: "I want a simple ERP system"
+  Output: {"products": true, "inventory": true, "sales": true}
+
+  Description: "I want an ERP system for my shop"
   Output: {"products": true, "inventory": true, "sales": true}
 
   Description: "We provide IT consulting services"

@@ -10,7 +10,6 @@ Design rules:
 """
 
 from rest_framework.permissions import BasePermission
-
 from accounts.models import Role
 
 
@@ -72,28 +71,27 @@ class IsSelf(BasePermission):
         return request.user.pk == obj.pk
 
 
-# ── Utility helpers (imported by views & project app) ────────────────────────
+# ── Utility helpers (imported by views & projects app) ────────────────────────
 
 def is_project_member(user, project) -> bool:
     """
-    Returns True if `user` is the admin, manager, or staff of `project`.
-    Single source of truth - import this everywhere instead of repeating the check.
+    Returns True if user is the admin, manager, or staff of project.
+    Single source of truth - never repeat this check inline.
     """
     return (
-        project.admin_id == user.pk
+        project.admin_id  == user.pk
         or project.manager_id == user.pk
-        or project.staff_id == user.pk
+        or project.staff_id   == user.pk
     )
 
 
 def get_user_project(user):
     """
     Returns the single project this manager/staff belongs to, or None.
-    Admins can belong to many projects - use get_projects_for_admin() instead.
+    Lazy import prevents circular dependency.
     """
     if user.role == Role.ADMIN:
         return None
-    # Lazy import to avoid circular dependency
     from projects.models import Project
     return (
         Project.objects.filter(manager=user).first()

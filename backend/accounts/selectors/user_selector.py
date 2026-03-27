@@ -33,12 +33,17 @@ def get_project_users_for_admin(admin_user: User) -> QuerySet:
     """
     Returns all manager and staff users that belong to any project
     owned by this admin. Used for the admin's user-list endpoint.
+
+    Uses the reverse OneToOne accessors defined on Project:
+      manager -> related_name="managed_project"   -> user.managed_project
+      staff   -> related_name="staffed_project"   -> user.staffed_project
     """
-    # Lazy import to prevent circular dependency at module level
     from projects.models import Project
 
+    # Get all project IDs owned by this admin
     project_ids = Project.objects.filter(admin=admin_user).values_list("id", flat=True)
 
+    # managed_project__id and staffed_project__id traverse the reverse OneToOne
     return User.objects.filter(
         Q(managed_project__id__in=project_ids) |
         Q(staffed_project__id__in=project_ids)
@@ -47,13 +52,13 @@ def get_project_users_for_admin(admin_user: User) -> QuerySet:
 
 def get_admin_owns_user(admin_user: User, target_user: User) -> bool:
     """
-    Returns True if target_user (manager or staff) belongs to any project
-    that admin_user owns. Admins can always access themselves.
+    Returns True if target_user belongs to any project that admin_user owns.
+    Admins can always access their own record.
     """
     if admin_user.pk == target_user.pk:
         return True
     if target_user.role == Role.ADMIN:
-        # Admins don't belong to other admins' projects
+        # Admins are not members of other admins' projects
         return False
 
     from projects.models import Project

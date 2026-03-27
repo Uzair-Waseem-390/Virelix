@@ -30,7 +30,8 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "accounts",
-    "ai_agent"
+    "ai_agent",
+    "projects",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
@@ -141,8 +142,8 @@ FERNET_KEY = os.getenv("FERNET_KEY")
 
 # celery
 # celery -A backend worker -l info
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'  # Add this line to store results
+CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
+CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
 CELERY_WORKER_POOL = "solo"
 CELERY_ACCEPT_CONTENT = ['application/json']
 CELERY_RESULT_SERIALIZER = 'json'
