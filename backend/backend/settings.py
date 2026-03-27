@@ -135,3 +135,21 @@ SIMPLE_JWT = {
 
 
 FERNET_KEY = os.getenv("FERNET_KEY")
+
+
+
+# celery
+# celery -A backend worker -l info
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'  # Add this line to store results
+CELERY_WORKER_POOL = "solo"
+CELERY_ACCEPT_CONTENT = ['application/json']
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Asia/Karachi'  # Change to your timezone
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
+CELERY_RESULT_EXPIRES = 86400  # 1 day
+
+# For Windows compatibility
+CELERY_WORKER_POOL_RESTARTS = True
