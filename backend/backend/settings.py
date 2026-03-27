@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "accounts",
+    "ai_agent"
 ]
 
 AUTH_USER_MODEL = "accounts.User"
@@ -153,3 +154,8 @@ CELERY_RESULT_EXPIRES = 86400  # 1 day
 
 # For Windows compatibility
 CELERY_WORKER_POOL_RESTARTS = True
+
+
+
+
+GEMINI_BASE_URL = os.getenv("GEMINI_BASE_URL")
