@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include
 from projects import views
 
 app_name = "projects"
@@ -15,6 +15,12 @@ urlpatterns = [
     # ── Member credential management (admin only) ──────────────────────────────
     path("<int:pk>/manager/",            views.UpdateManagerView.as_view(),     name="update-manager"),
     path("<int:pk>/staff/",              views.UpdateStaffView.as_view(),       name="update-staff"),
+    
+    # ── Nested ERP modules ─────────────────────────────────────────────────────
+    path(
+        "<int:project_pk>/products/",
+        include("products.urls", namespace="products"),
+    ),
 ]
 
 

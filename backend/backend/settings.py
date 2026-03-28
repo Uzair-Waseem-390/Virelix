@@ -32,6 +32,13 @@ INSTALLED_APPS = [
     "accounts",
     "ai_agent",
     "projects",
+    "products",
+    # "inventory",
+    # "sales",
+    # "customers",
+    # "orders",
+    # "reports",
+    # "settings",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
