@@ -33,7 +33,7 @@ INSTALLED_APPS = [
     "ai_agent",
     "projects",
     "products",
-    # "inventory",
+    "inventory",
     # "sales",
     # "customers",
     # "orders",

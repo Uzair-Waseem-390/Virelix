@@ -17,10 +17,8 @@ urlpatterns = [
     path("<int:pk>/staff/",              views.UpdateStaffView.as_view(),       name="update-staff"),
     
     # ── Nested ERP modules ─────────────────────────────────────────────────────
-    path(
-        "<int:project_pk>/products/",
-        include("products.urls", namespace="products"),
-    ),
+    path("<int:project_pk>/products/",  include("products.urls", namespace="products")),
+    path("<int:project_pk>/inventory/", include("inventory.urls",  namespace="inventory")),
 ]
 
 
