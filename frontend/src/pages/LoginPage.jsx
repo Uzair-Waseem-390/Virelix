@@ -241,15 +241,23 @@ const LoginPage = () => {
         }
         
         .animate-fade-in {
-          animation: fade-in 0.6s ease-out;
+            animation: fade-in 0.6s ease-out;
         }
         
         .animate-slide-up {
-          animation: slide-up 0.5s ease-out;
+            animation: slide-up 0.5s ease-out;
         }
         
         .animate-shake {
           animation: shake 0.5s ease-in-out;
+        }
+
+        .animate-fade-in {
+            animation: fade-in 0.6s ease-out forwards;
+        }
+
+        .animate-slide-up {
+            animation: slide-up 0.5s ease-out forwards;
         }
       `}</style>
         </div>
