@@ -19,6 +19,7 @@ urlpatterns = [
     # ── Nested ERP modules ─────────────────────────────────────────────────────
     path("<int:project_pk>/products/",  include("products.urls", namespace="products")),
     path("<int:project_pk>/inventory/", include("inventory.urls",  namespace="inventory")),
+    path("<int:project_pk>/sales/",     include("sales.urls",     namespace="sales")),
 ]
 
 
