@@ -40,7 +40,7 @@ const AboutPage = () => {
         { icon: '⚙️', title: 'Dynamic Module Config', desc: 'Products, Inventory, Sales modules configured based on needs' },
         { icon: '📈', title: 'Real-time Tracking', desc: 'Live inventory and sales tracking with instant insights' },
         { icon: '🔐', title: 'JWT Authentication', desc: 'Secure role-based access control for all users' },
-        { icon: '🔔', title: 'Automated Alerts', desc: 'Low stock alerts and AI-powered business insights' },
+        { icon: '🔔', title: 'Automated Alerts', desc: 'Low stock alerts' },
         { icon: '⚡', title: 'Scalable Architecture', desc: 'Celery & Redis for efficient background job processing' },
     ];
 
@@ -187,7 +187,7 @@ const AboutPage = () => {
                             <span className="shimmer-text">Uzair Waseem</span>
                         </h1>
                         <p className="animate-fade-in-up-d2 text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
-                            Full Stack Developer & AI Enthusiast — crafting intelligent web solutions that transform businesses.
+                            Full Stack Developer & Agentic AI Engineer | crafting intelligent web solutions that transform businesses.
                         </p>
                     </div>
                 </section>

@@ -164,7 +164,15 @@ class ERPAnalysisAgent:
         )
 
         return config
+        
+    # ✅ NEW METHOD: Strict JSON output
+    # def analyze_to_json(self, description: str) -> str:
+    #     config = self.analyze(description)
 
+    #     # Convert to STRICT JSON string
+    #     return config.model_dump_json()
+    #     print("Json output: ", config.model_dump_json())
+      
 
 # ── Module-level convenience function ─────────────────────────────────────────
 # Called by the Celery task. Keeps the task file clean.
