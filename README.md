@@ -176,7 +176,7 @@ Before you begin, ensure you have the following installed:
 
 ### 1. Clone the Repository
 
-```bash
+
 git clone https://github.com/Uzair-Waseem-390/Virelix.git
 cd Virelix
 2. Backend Setup
