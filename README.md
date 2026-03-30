@@ -57,7 +57,7 @@ Virelix is an intelligent, AI-powered Enterprise Resource Planning (ERP) system 
 ![Admin Dashboard](images/admin_dashboard.png)
 
 ### Project Dashboard
-![Project Dashboard](images/projectdashboard.png)
+![Project Dashboard](images/project_dashboard.png)
 
 ### Products Management
 ![Products Module](images/products.png)
@@ -208,7 +208,6 @@ Virelix uses Google's Gemini AI (via OpenAI SDK agent with Gemini Flash 2.5 as L
 | Technology | Version | Purpose |
 |------------|---------|---------|
 | Python | 3.14+ | Core programming language |
-| Django | 6.0 | Web framework |
 | Django REST Framework | 3.17 | REST API development |
 | Celery | 5.6 | Background task processing |
 | Redis | 7.4 | Message broker & caching |
@@ -298,9 +297,6 @@ PORT=5432
 # Gemini AI Configuration
 GEMINI_BASE_URL=https://generativelanguage.googleapis.com
 FERNET_KEY=your-fernet-key-here
-
-# Redis Configuration (for Celery)
-REDIS_URL=redis://localhost:6379
 ```
 
 #### Initialize Database and Run Server
@@ -658,11 +654,6 @@ For support, please contact:
 - [**Celery & Redis**](https://docs.celeryq.dev/) - Robust background task processing
 - [**PostgreSQL**](https://www.postgresql.org/) - Reliable database system
 
----
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
 
 ---
 
