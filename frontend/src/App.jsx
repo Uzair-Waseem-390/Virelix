@@ -10,6 +10,7 @@ import SecurityPage from './pages/SecurityPage';
 import ProfilePage from './pages/ProfilePage';
 import TeamPage from './pages/TeamPage';
 import ProjectsPage from './pages/ProjectsPage';
+import ProductsPage from './pages/ProductsPage';
 import PrivateRoute from './components/guards/PrivateRoute';
 import PublicRoute from './components/guards/PublicRoute';
 import AdminRoute from './components/guards/AdminRoute';
@@ -75,6 +76,9 @@ function App() {
 
           {/* General protected routes for all roles */}
           <Route path="/dashboard/projects/:projectId" element={<ProjectDashboard />} />
+
+          {/* Products route - nested under project */}
+          <Route path="/dashboard/projects/:projectId/products" element={<ProductsPage />} />
         </Route>
       </Routes>
     </Router>
