@@ -20,3 +20,6 @@ export const activateProduct = (projectId, productId) =>
 
 export const deactivateProduct = (projectId, productId) =>
     axiosInstance.post(`/projects/${projectId}/products/${productId}/deactivate/`);
+
+export const getAllProducts = (projectId) =>
+    axiosInstance.get(`/projects/${projectId}/products/?filter=all`);

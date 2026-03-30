@@ -11,6 +11,8 @@ import ProfilePage from './pages/ProfilePage';
 import TeamPage from './pages/TeamPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ProductsPage from './pages/ProductsPage';
+import InventoryPage from './pages/InventoryPage';
+import MovementHistoryPage from './pages/MovementHistoryPage';
 import PrivateRoute from './components/guards/PrivateRoute';
 import PublicRoute from './components/guards/PublicRoute';
 import AdminRoute from './components/guards/AdminRoute';
@@ -77,8 +79,12 @@ function App() {
           {/* General protected routes for all roles */}
           <Route path="/dashboard/projects/:projectId" element={<ProjectDashboard />} />
 
-          {/* Products route - nested under project */}
+          {/* Products route */}
           <Route path="/dashboard/projects/:projectId/products" element={<ProductsPage />} />
+
+          {/* Inventory routes */}
+          <Route path="/dashboard/projects/:projectId/inventory" element={<InventoryPage />} />
+          <Route path="/dashboard/projects/:projectId/inventory/:inventoryId/history" element={<MovementHistoryPage />} />
         </Route>
       </Routes>
     </Router>
