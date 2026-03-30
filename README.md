@@ -53,7 +53,7 @@ Virelix is an intelligent, AI-powered Enterprise Resource Planning (ERP) system 
 ![Admin Dashboard](images/admin_dashboard.png)
 
 ### Project Dashboard
-![Project Dashboard](images/projectdashboard.png)
+![Project Dashboard](images/project_dashboard.png)
 
 ### Products Management
 ![Products Module](images/products.png)
