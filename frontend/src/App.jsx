@@ -12,6 +12,7 @@ import TeamPage from './pages/TeamPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ProductsPage from './pages/ProductsPage';
 import InventoryPage from './pages/InventoryPage';
+import SalesPage from './pages/SalesPage';
 import MovementHistoryPage from './pages/MovementHistoryPage';
 import PrivateRoute from './components/guards/PrivateRoute';
 import PublicRoute from './components/guards/PublicRoute';
@@ -85,6 +86,9 @@ function App() {
           {/* Inventory routes */}
           <Route path="/dashboard/projects/:projectId/inventory" element={<InventoryPage />} />
           <Route path="/dashboard/projects/:projectId/inventory/:inventoryId/history" element={<MovementHistoryPage />} />
+
+          {/* Sales routes */}
+          <Route path="/dashboard/projects/:projectId/sales" element={<SalesPage />} />
         </Route>
       </Routes>
     </Router>
