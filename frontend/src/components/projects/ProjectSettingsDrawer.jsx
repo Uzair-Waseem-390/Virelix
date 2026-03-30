@@ -43,12 +43,12 @@ const ProjectSettingsDrawer = ({ isOpen, onClose, project, onProjectUpdate, onPr
         <>
             {/* Backdrop */}
             <div
-                className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"
+                className="fixed inset-0 bg-black bg-opacity-50 z-30 transition-opacity"
                 onClick={onClose}
             ></div>
 
             {/* Drawer */}
-            <div className="fixed right-0 top-0 h-full w-full max-w-lg bg-white shadow-2xl z-50 transform transition-transform animate-slide-in-right">
+            <div className="fixed right-0 top-0 h-full w-full max-w-lg bg-white shadow-2xl z-40 transform transition-transform animate-slide-in-right">
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-gray-200">
                     <div>

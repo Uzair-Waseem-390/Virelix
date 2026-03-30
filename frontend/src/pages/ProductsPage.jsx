@@ -10,9 +10,12 @@ import EditProductModal from '../components/products/EditProductModal';
 import DeleteProductModal from '../components/products/DeleteProductModal';
 
 const ProductsPage = () => {
-    const { projectId } = useParams();
+    // Use the correct param name from the route
+    const { project_pk } = useParams();
+    const projectId = project_pk; // Alias for clarity
     const navigate = useNavigate();
     const { user } = useAuthStore();
+
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -27,6 +30,11 @@ const ProductsPage = () => {
     const debouncedSearch = useDebounce(searchTerm, 400);
 
     const fetchProducts = useCallback(async () => {
+        if (!projectId) {
+            console.error('No projectId available');
+            return;
+        }
+
         setLoading(true);
         try {
             const params = { filter };
@@ -46,8 +54,10 @@ const ProductsPage = () => {
     }, [projectId, filter, debouncedSearch, navigate]);
 
     useEffect(() => {
-        fetchProducts();
-    }, [fetchProducts]);
+        if (projectId) {
+            fetchProducts();
+        }
+    }, [fetchProducts, projectId]);
 
     const handleCreateProduct = async (data) => {
         setIsSubmitting(true);
@@ -155,6 +165,19 @@ const ProductsPage = () => {
         document.addEventListener('keydown', handleEscapeKey);
         return () => document.removeEventListener('keydown', handleEscapeKey);
     }, [handleEscapeKey]);
+
+    // Show loading state while checking for projectId
+    if (!projectId) {
+        return (
+            <div className="min-h-screen bg-gray-50 p-8">
+                <div className="max-w-7xl mx-auto">
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <p className="text-yellow-800">No project selected. Please go back and select a project.</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     if (loading) {
         return (

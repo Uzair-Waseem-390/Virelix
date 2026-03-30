@@ -14,9 +14,12 @@ import DeleteInventoryModal from '../components/inventory/DeleteInventoryModal';
 import StockAlertBanner from '../components/inventory/StockAlertBanner';
 
 const InventoryPage = () => {
-    const { projectId } = useParams();
+    // Use the correct param name from the route
+    const { project_pk } = useParams();
+    const projectId = project_pk; // Alias for clarity
     const navigate = useNavigate();
     const { user } = useAuthStore();
+
     const [inventory, setInventory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -38,6 +41,8 @@ const InventoryPage = () => {
     const debouncedSearch = useDebounce(searchTerm, 400);
 
     const fetchAlertCounts = useCallback(async () => {
+        if (!projectId) return;
+
         try {
             const [lowStockRes, outOfStockRes] = await Promise.all([
                 getLowStock(projectId),
@@ -53,6 +58,11 @@ const InventoryPage = () => {
     }, [projectId]);
 
     const fetchInventory = useCallback(async () => {
+        if (!projectId) {
+            console.error('No projectId available');
+            return;
+        }
+
         setLoading(true);
         try {
             const params = {};
@@ -73,9 +83,11 @@ const InventoryPage = () => {
     }, [projectId, filter, debouncedSearch, navigate]);
 
     useEffect(() => {
-        fetchInventory();
-        fetchAlertCounts();
-    }, [fetchInventory, fetchAlertCounts]);
+        if (projectId) {
+            fetchInventory();
+            fetchAlertCounts();
+        }
+    }, [fetchInventory, fetchAlertCounts, projectId]);
 
     const handleStockIn = async (inventoryItem, data) => {
         setIsSubmitting(true);
@@ -197,6 +209,19 @@ const InventoryPage = () => {
         document.addEventListener('keydown', handleEscapeKey);
         return () => document.removeEventListener('keydown', handleEscapeKey);
     }, [handleEscapeKey]);
+
+    // Show validation state while checking for projectId
+    if (!projectId) {
+        return (
+            <div className="min-h-screen bg-gray-50 p-8">
+                <div className="max-w-7xl mx-auto">
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <p className="text-yellow-800">No project selected. Please go back and select a project.</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     if (loading) {
         return (
@@ -417,15 +442,10 @@ const InventoryPage = () => {
                 isOpen={showAddModal}
                 onClose={() => {
                     setShowAddModal(false);
-                    setError(''); // Clear any errors
                 }}
                 projectId={projectId}
                 existingInventory={inventory}
                 onSubmit={async (data) => {
-                    console.log('=== CREATE INVENTORY DEBUG ===');
-                    console.log('Project ID:', projectId);
-                    console.log('Data being sent:', data);
-
                     if (!data.product_id) {
                         console.error('No product_id in data!');
                         alert('Please select a product');
@@ -435,17 +455,11 @@ const InventoryPage = () => {
                     setIsSubmitting(true);
                     try {
                         const response = await createInventory(projectId, data);
-                        console.log('Create inventory response:', response.data);
                         setInventory(prev => [response.data, ...prev]);
                         setShowAddModal(false);
                         fetchAlertCounts();
                     } catch (err) {
-                        console.error('=== CREATE INVENTORY ERROR ===');
-                        console.error('Error object:', err);
-                        console.error('Error response:', err.response);
-                        console.error('Error data:', err.response?.data);
-                        console.error('Error status:', err.response?.status);
-
+                        console.error('Failed to create inventory:', err);
                         let errorMessage = 'Failed to create inventory';
                         if (err.response?.data?.detail) {
                             errorMessage = err.response.data.detail;
@@ -454,7 +468,6 @@ const InventoryPage = () => {
                         } else if (err.message) {
                             errorMessage = err.message;
                         }
-
                         alert(errorMessage);
                     } finally {
                         setIsSubmitting(false);

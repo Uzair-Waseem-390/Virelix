@@ -1,13 +1,19 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import axios from 'axios';
 
 export const useAuthStore = create(
     persist(
         (set, get) => ({
+            // Auth state
             user: null,
             accessToken: null,
             refreshToken: null,
             isAuthenticated: false,
+
+            // Dashboard state
+            adminDashboardData: null,
+            currentProject: null,
 
             login: async (email, password) => {
                 try {
@@ -44,6 +50,8 @@ export const useAuthStore = create(
                     accessToken: null,
                     refreshToken: null,
                     isAuthenticated: false,
+                    adminDashboardData: null,
+                    currentProject: null,
                 });
             },
 
@@ -56,6 +64,59 @@ export const useAuthStore = create(
                 if (user) {
                     set({ user: { ...user, email } });
                 }
+            },
+
+            // Dashboard actions
+            setAdminDashboardData: (data) => {
+                set({ adminDashboardData: data });
+            },
+
+            setCurrentProject: (project) => {
+                set({ currentProject: project });
+            },
+
+            clearCurrentProject: () => {
+                set({ currentProject: null });
+            },
+
+            // Helper to get notification count
+            getNotificationCount: () => {
+                const { adminDashboardData, currentProject } = get();
+                if (currentProject) {
+                    const lowStock = currentProject.low_stock_items?.length || 0;
+                    const outOfStock = currentProject.out_of_stock_items?.length || 0;
+                    return lowStock + outOfStock;
+                }
+                if (adminDashboardData) {
+                    const lowStock = adminDashboardData.low_stock_items?.length || 0;
+                    const outOfStock = adminDashboardData.out_of_stock_items?.length || 0;
+                    return lowStock + outOfStock;
+                }
+                return 0;
+            },
+
+            // Helper to check if user has specific role
+            hasRole: (role) => {
+                const { user } = get();
+                return user?.role === role;
+            },
+
+            // Helper to check if user is admin
+            isAdmin: () => {
+                const { user } = get();
+                return user?.role === 'admin';
+            },
+
+            // Helper to check if user is manager
+            isManager: () => {
+                const { user } = get();
+                return user?.role === 'manager';
+            },
+
+            // Helper to check if user is staff
+            isStaff: () => {
+                const { user } = get();
+                return user?.role === 'staff';
             },
         }),
         {

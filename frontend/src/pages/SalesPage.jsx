@@ -13,9 +13,12 @@ import CancelSaleModal from '../components/sales/CancelSaleModal';
 import DeleteSaleModal from '../components/sales/DeleteSaleModal';
 
 const SalesPage = () => {
-    const { projectId } = useParams();
+    // Use the correct param name from the route
+    const { project_pk } = useParams();
+    const projectId = project_pk; // Alias for clarity
     const navigate = useNavigate();
     const { user } = useAuthStore();
+
     const [sales, setSales] = useState([]);
     const [summary, setSummary] = useState({ total_revenue: 0, total_confirmed_sales: 0, draft_sales: 0 });
     const [loading, setLoading] = useState(true);
@@ -33,8 +36,9 @@ const SalesPage = () => {
 
     const debouncedSearch = useDebounce(searchTerm, 400);
 
-
     const handleRowClick = async (sale) => {
+        if (!projectId) return;
+
         try {
             // Fetch full sale details including items
             const response = await getSale(projectId, sale.id);
@@ -50,6 +54,11 @@ const SalesPage = () => {
     };
 
     const fetchData = useCallback(async () => {
+        if (!projectId) {
+            console.error('No projectId available');
+            return;
+        }
+
         setLoading(true);
         try {
             const params = {};
@@ -85,10 +94,14 @@ const SalesPage = () => {
     }, [projectId, statusFilter, debouncedSearch, navigate]);
 
     useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+        if (projectId) {
+            fetchData();
+        }
+    }, [fetchData, projectId]);
 
     const handleCreateSale = async (data) => {
+        if (!projectId) return { success: false };
+
         console.log('Creating sale with data:', data); // Debug log
         setIsSubmitting(true);
         try {
@@ -101,7 +114,7 @@ const SalesPage = () => {
 
             // 2. Add all items to the sale
             if (items && items.length > 0) {
-                const addItemsPromises = items.map(item => 
+                const addItemsPromises = items.map(item =>
                     addSaleItem(projectId, newSale.id, item)
                 );
                 await Promise.all(addItemsPromises);
@@ -134,7 +147,8 @@ const SalesPage = () => {
     };
 
     const handleConfirmSale = async () => {
-        if (!selectedSale) return;
+        if (!selectedSale || !projectId) return;
+
         setIsSubmitting(true);
         try {
             const response = await confirmSale(projectId, selectedSale.id);
@@ -151,7 +165,8 @@ const SalesPage = () => {
     };
 
     const handleCancelSale = async () => {
-        if (!selectedSale) return;
+        if (!selectedSale || !projectId) return;
+
         setIsSubmitting(true);
         try {
             const response = await cancelSale(projectId, selectedSale.id);
@@ -168,7 +183,8 @@ const SalesPage = () => {
     };
 
     const handleDeleteSale = async () => {
-        if (!selectedSale) return;
+        if (!selectedSale || !projectId) return;
+
         setIsSubmitting(true);
         try {
             await deleteSale(projectId, selectedSale.id);
@@ -206,6 +222,19 @@ const SalesPage = () => {
         { id: 'confirmed', label: 'Confirmed' },
         { id: 'cancelled', label: 'Cancelled' }
     ];
+
+    // Show validation state while checking for projectId
+    if (!projectId) {
+        return (
+            <div className="min-h-screen bg-gray-50 p-8">
+                <div className="max-w-7xl mx-auto">
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <p className="text-yellow-800">No project selected. Please go back and select a project.</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     if (loading) {
         return (
