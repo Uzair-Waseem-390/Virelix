@@ -139,8 +139,6 @@ PostgreSQL serves as the primary database with several key design patterns:
 Celery with Redis as the message broker handles asynchronous operations:
 
 - **AI Module Analysis**: When a project is created, a Celery task runs the AI analysis without blocking the user
-- **Low Stock Detection**: Scheduled tasks scan inventory and generate alerts for items below threshold
-- **Automated Notifications**: Email alerts are sent asynchronously when stock levels are critical
 
 ### Request Flow Example
 
