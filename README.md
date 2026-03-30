@@ -70,8 +70,8 @@ Virelix is an intelligent, AI-powered Enterprise Resource Planning (ERP) system 
 ┌─────────────────────────────────────────────────────────────────┐
 │ Frontend (React + Vite) │
 │ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐│
-│ │ Admin    │ │ Project │ │ Products  │ │Inventory │ │ Sales ││
-│ │Dashboard │ │Dashboard │ │ Page     │ │ Page     │ │ Page ││
+│ │ Admin │ │ Project │ │ Products │ │Inventory │ │ Sales ││
+│ │Dashboard │ │Dashboard │ │ Page │ │ Page │ │ Page ││
 │ └──────────┘ └──────────┘ └──────────┘ └──────────┘ └────────┘│
 │ ┌──────────────────────────────────────────────────────────────┐│
 │ │ Zustand Store (State Management) ││
@@ -82,23 +82,23 @@ Virelix is an intelligent, AI-powered Enterprise Resource Planning (ERP) system 
 ┌─────────────────────────────────────────────────────────────────┐
 │ Backend (Django REST Framework) │
 │ ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌──────────────┐ │
-│ │ Accounts   │ │ Projects   │ │ Products │ │ Inventory │ │
-│ │ API        │ │ API        │ │ API │      │ API │ │
+│ │ Accounts │ │ Projects │ │ Products │ │ Inventory │ │
+│ │ API │ │ API │ │ API │ │ API │ │
 │ └────────────┘ └────────────┘ └────────────┘ └──────────────┘ │
 │ ┌────────────┐ ┌────────────────────────────────────────────┐ │
-│ │ Sales      │ │ AI Agent (OpenAI SDK) │ │
-│ │ API        │ │ └── Gemini Flash 2.5 LLM │ │
+│ │ Sales │ │ AI Agent (OpenAI SDK) │ │
+│ │ API │ │ └── Gemini Flash 2.5 LLM │ │
 │ └────────────┘ └────────────────────────────────────────────┘ │
 └─────────────┬───────────────────┬───────────────────────────────┘
 │ │
 ▼ ▼
 ┌──────────────────┐ ┌──────────────────────────┐
-│ PostgreSQL       │ │ Redis + Celery │
-│ Database         │ │ (Background Tasks) │
-│ OpenAI SDK       │ │ - AI Analysis │
+│ PostgreSQL │ │ Redis + Celery │
+│ Database │ │ (Background Tasks) │
+│ │ │ - AI Analysis │
 │ - Data Isolation │ │ - Low Stock Detection │
-│ - Row-level      │ │ - Automated Alerts │
-│ Security         │ │ │
+│ - Row-level │ │ - Automated Alerts │
+│ Security │ │ │
 └──────────────────┘ └──────────────────────────┘
 
 
