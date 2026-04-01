@@ -461,9 +461,6 @@ Virelix uses Celery + Redis for asynchronous task processing:
 | Task | Trigger | Frequency | Description |
 |------|---------|-----------|-------------|
 | AI Module Analysis | Project creation | On-demand | Analyzes business description to configure modules |
-| Low Stock Detection | Scheduled | Every hour | Scans inventory for items below threshold |
-| Out of Stock Detection | Scheduled | Every hour | Identifies items with zero quantity |
-| Automated Email Alerts | On detection | Real-time | Sends notifications for low/out of stock |
 
 ---
 
