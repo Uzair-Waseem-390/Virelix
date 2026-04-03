@@ -45,7 +45,6 @@ Virelix is an intelligent, AI-powered Enterprise Resource Planning (ERP) system 
 - Automatic inventory deduction on sales confirmation
 - Background job processing with Celery
 - Real-time low stock alerts
-
 ---
 
 ## 📸 Screenshots
