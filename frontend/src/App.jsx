@@ -16,6 +16,8 @@ import MovementHistoryPage from './pages/MovementHistoryPage';
 import SalesPage from './pages/SalesPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import ProjectDashboardPage from './pages/ProjectDashboardPage';
+import AIChatListPage from './pages/AIChatListPage';
+import AIChatPage from './pages/AIChatPage';
 import PrivateRoute from './components/guards/PrivateRoute';
 import PublicRoute from './components/guards/PublicRoute';
 import AdminRoute from './components/guards/AdminRoute';
@@ -64,6 +66,8 @@ function App() {
             <Route path="inventory/history" element={<MovementHistoryPage />} />
             <Route path="sales" element={<SalesPage />} />
             <Route path="profile" element={<ProfilePage />} />
+            <Route path="ai" element={<AIChatListPage />} />
+            <Route path="ai/chats/:chatId" element={<AIChatPage />} />
           </Route>
         </Route>
 

@@ -53,6 +53,8 @@ const ProjectLayout = () => {
         if (path.includes('/inventory')) return 'Inventory';
         if (path.includes('/sales')) return 'Sales';
         if (path.includes('/profile')) return 'My Profile';
+        if (path.includes('/ai/chats/')) return 'AI Chat';
+        if (path.includes('/ai')) return 'AI Business Analyst';
         return 'Dashboard';
     };
 
