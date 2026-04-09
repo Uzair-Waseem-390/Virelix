@@ -27,6 +27,7 @@ urlpatterns = [
 # "email": "manager.db6754@test.demo",  28
 # ava123123
 # "email": "staff.db6754@test.demo",  29
+# ava123123
 # {
 #     "task_id": null,
 #     "project": {
