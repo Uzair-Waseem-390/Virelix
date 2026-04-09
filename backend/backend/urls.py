@@ -20,4 +20,6 @@ urlpatterns = [
     path('accounts/', include('accounts.urls', namespace='accounts')),
     path('projects/', include('projects.urls', namespace='projects')),
     path('dashboard/', include('dashboard.urls', namespace='dashboard')),
+    # Business Analyst AI agent — nested under each project
+    path('projects/<int:project_pk>/ai/', include('ai_agent.urls', namespace='ai_agent')),
 ]
