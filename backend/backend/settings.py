@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "sales",
     "dashboard",
     "corsheaders",
+    "data_entry",
     # "customers",
     # "orders",
     # "reports",
