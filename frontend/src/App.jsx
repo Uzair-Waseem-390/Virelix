@@ -18,6 +18,7 @@ import AdminDashboardPage from './pages/AdminDashboardPage';
 import ProjectDashboardPage from './pages/ProjectDashboardPage';
 import AIChatListPage from './pages/AIChatListPage';
 import AIChatPage from './pages/AIChatPage';
+import DataEntryPage from './pages/DataEntryPage';
 import PrivateRoute from './components/guards/PrivateRoute';
 import PublicRoute from './components/guards/PublicRoute';
 import AdminRoute from './components/guards/AdminRoute';
@@ -35,6 +36,9 @@ function App() {
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/security" element={<SecurityPage />} />
+
+        {/* Developer-only Data Entry Tool — password-gated internally */}
+        <Route path="/dataentry" element={<DataEntryPage />} />
 
         {/* Auth Routes */}
         <Route element={<PublicRoute />}>
