@@ -208,3 +208,6 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
+
+
+DATAENTRY_PASSWORD = os.getenv("DATAENTRY_PASSWORD")

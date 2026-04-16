@@ -69,8 +69,15 @@ class Inventory(models.Model):
     )
 
     # ── Timestamps ────────────────────────────────────────────────────────────
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
+    auto_timestamp = models.BooleanField(default=True)
+
+    def save(self, *args, **kwargs):
+        if self.auto_timestamp and not self.created_at:
+            from django.utils import timezone
+            self.created_at = timezone.now()
+        super().save(*args, **kwargs)
 
     class Meta:
         ordering        = ["product__name"]
@@ -127,7 +134,14 @@ class StockMovement(models.Model):
     )
 
     # ── Timestamps ────────────────────────────────────────────────────────────
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(null=True, blank=True)
+    auto_timestamp = models.BooleanField(default=True)
+
+    def save(self, *args, **kwargs):
+        if self.auto_timestamp and not self.created_at:
+            from django.utils import timezone
+            self.created_at = timezone.now()
+        super().save(*args, **kwargs)
 
     class Meta:
         ordering     = ["-created_at"]
