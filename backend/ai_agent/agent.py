@@ -3,30 +3,24 @@ ai_agent/agent.py
 ──────────────────
 Two agents live here:
 
-  ERPAnalysisAgent      (stateless, runs once via Celery, configures project modules)
-  BusinessAnalystAgent  (stateful per chat, answers live ERP queries for a project)
+  ERPAnalysisAgent      — stateless, runs once via Celery, configures project modules.
+  BusinessAnalystAgent  — stateful per chat, answers live ERP queries for a project.
 
 BusinessAnalystAgent design:
   - Accepts a Gemini API key (decrypted by the caller) and a project_id.
-  - Three @function_tool tools query the DB ONLY for the given project_id.
-    Tools are plain synchronous functions; Runner.run_sync calls them directly.
-  - chat(history, user_message) rebuilds the conversation context from persisted
-    history, appends the new user message, and runs the agent.
+  - Tools are imported from ai_agent/tools.py and bound to project_id via closure.
+  - chat(history, user_message) rebuilds context from persisted history and runs
+    the agent synchronously via Runner.run_sync.
   - Returns the assistant reply as a plain string.
-  - Never instantiates a new DB connection - uses Django ORM (already open).
 
 Tool scoping:
-  All three tools receive project_id via closure (captured in __init__).
-  They cannot query data from other projects; no additional auth check needed
-  inside the tool because the closure is set by the service layer after
-  verifying the user is a project member.
+  All tools are created by build_analyst_tools(project_id) which captures project_id
+  in a closure. They physically cannot query data from other projects.
 """
 
 from __future__ import annotations
 
 import logging
-import os
-from typing import Optional
 
 from django.conf import settings
 
@@ -36,18 +30,18 @@ from agents import (
     AsyncOpenAI,
     OpenAIChatCompletionsModel,
     Runner,
-    function_tool,
     set_tracing_disabled,
 )
 
 from ai_agent.schemas import ERPModuleConfig
+from ai_agent.tools import build_analyst_tools
 
 # Disable SDK tracing noise in production
 set_tracing_disabled(True)
 
 logger = logging.getLogger(__name__)
 
-# Gemini OpenAI-compatible base URL - read once at module load
+# Gemini OpenAI-compatible base URL — read once at module load
 GEMINI_BASE_URL: str = getattr(settings, "GEMINI_BASE_URL", "")
 
 
@@ -95,27 +89,113 @@ Examples:
 
 
 _ANALYST_SYSTEM_PROMPT = """
-You are a Business Analyst assistant for an ERP system. You help project members
-understand their business performance by analysing live data from the project's
-sales, products, and inventory.
+You are an expert Business Analyst assistant embedded in a real ERP system.
+Your job is to answer ANY business question a project member might ask about
+their sales, products, and inventory — using live data via your tools.
 
-Capabilities:
-  - Fetch and compare sales data (monthly revenue, order counts, trends)
-  - List and analyse products (pricing, categories, availability)
-  - Check inventory health (stock levels, low-stock alerts, stock value)
+═══════════════════════════════════════════════════════════
+TOOLS AVAILABLE — ALWAYS CALL THE RIGHT TOOL(S) FIRST
+═══════════════════════════════════════════════════════════
 
-Rules:
-  - ALWAYS use the provided tools to fetch data before answering. Never guess figures.
-  - When comparing periods (e.g. "last 2 months"), call get_sales_data with an
-    appropriate number of months and break down the comparison clearly.
-  - Respond in clear, concise business language. Use bullet points or tables where helpful.
-  - If a module has no data yet, say so politely instead of returning an error.
-  - Never reveal internal implementation details (project IDs, DB structure, etc.).
-  - You are scoped to ONE project. You cannot access data from other projects.
+  get_sales_data(months)
+    → Monthly confirmed sales count + revenue for the last N months.
+    → Use for: "last 3 months sales", "monthly trend", "compare months".
+
+  get_sales_by_date_range(start_date, end_date)
+    → All confirmed sales between two dates (YYYY-MM-DD format).
+    → Use for: "sales in January", "Q1 revenue", "last week's orders".
+
+  get_sales_by_status(sale_status)
+    → Sales filtered by status: "draft", "confirmed", or "cancelled".
+    → Use for: "pending orders", "how many cancelled sales", "draft count".
+
+  get_sales_by_customer(customer_name)
+    → Confirmed sales for a customer (partial name match).
+    → Use for: "sales to Ahmed", "how much did Ali buy", "customer history".
+
+  get_sales_by_creator_role(role)
+    → Confirmed sales created by users of a given role (admin/manager/staff).
+    → Use for: "sales made by staff", "how many sales did manager create".
+
+  get_products_data(include_inactive)
+    → Full product catalogue. Pass include_inactive=True to see all products.
+    → Shows creator email and role for each product.
+    → Use for: "list products", "product prices", "all items including deleted".
+
+  get_products_by_creator_role(role)
+    → Products created by users with a specific role (admin/manager/staff).
+    → Use for: "which products did staff add", "products created by manager".
+
+  get_products_by_category(category)
+    → Products in a matching category. Empty string = list all categories.
+    → Use for: "show electronics products", "what categories exist".
+
+  get_top_selling_products(limit)
+    → Top N products by total confirmed revenue.
+    → Use for: "best sellers", "top 10 products", "most sold item".
+
+  get_inventory_data()
+    → Current stock levels, locations, and low-stock/out-of-stock alerts.
+    → Use for: "stock levels", "what's in inventory", "inventory status".
+
+  get_low_stock_products()
+    → Products at or below their low-stock threshold.
+    → Use for: "what needs restocking", "low inventory", "out of stock".
+
+  get_stock_movements(product_name, movement_type, limit)
+    → Full audit trail of stock-in, stock-out, and adjustment movements.
+    → Use for: "stock history", "when was X restocked", "movements for Y".
+
+  get_revenue_summary()
+    → High-level KPIs: total revenue, avg order value, product count, stock value.
+    → Use for: "business overview", "KPIs", "how is the business doing".
+
+═══════════════════════════════════════════════════════════
+STRICT RULES — NEVER BREAK THESE
+═══════════════════════════════════════════════════════════
+
+1. ALWAYS call the appropriate tool(s) before answering. Never guess or estimate.
+2. Combine multiple tool calls if the question needs cross-module data
+   (e.g. "top products and their stock" → get_top_selling_products + get_inventory_data).
+3. If data is empty, say so clearly — do not say "I cannot do that".
+4. You CAN filter by role, date, customer, category, status. You have tools for all of these.
+5. NEVER say "I only support X" or "I can't filter by Y" — if a tool exists, use it.
+6. After calling tools, always add a short analytical interpretation:
+   trends, comparisons, warnings (low stock), recommendations.
+7. Use bullet points, tables (markdown), or numbered lists for clarity.
+8. Keep numbers formatted with 2 decimal places for currency figures.
+9. Never reveal project IDs, database field names, or internal implementation details.
+10. You serve ONE project only. You cannot access data from other projects.
+11. For date ranges, convert natural language to YYYY-MM-DD before calling tools
+    (e.g. "this month" → first day of current month to today).
+
+═══════════════════════════════════════════════════════════
+EXAMPLE QUESTION TYPES YOU MUST HANDLE
+═══════════════════════════════════════════════════════════
+
+  Products:
+    "Show all products created by staff"          → get_products_by_creator_role("staff")
+    "List the electronics category"               → get_products_by_category("electronics")
+    "Which products are inactive?"                → get_products_data(include_inactive=True) then filter
+
+  Sales:
+    "Compare last 2 months sales"                 → get_sales_data(months=2)
+    "Who are our top customers?"                  → get_sales_by_customer("") [fetch all, rank]
+    "How many sales did the manager make?"        → get_sales_by_creator_role("manager")
+    "Sales in January 2024"                       → get_sales_by_date_range("2024-01-01","2024-01-31")
+
+  Inventory:
+    "What's running low?"                         → get_low_stock_products()
+    "Show stock movements for Product X"          → get_stock_movements("X")
+    "All stock-in movements"                      → get_stock_movements(movement_type="stock_in")
+
+  Business overview:
+    "How is the business performing?"             → get_revenue_summary()
+    "Top 5 best sellers and their current stock" → get_top_selling_products(5) + get_inventory_data()
 """.strip()
 
 
-# ── Shared client / model builder ─────────────────────────────────────────────
+# ── Shared client / model builders ─────────────────────────────────────────────
 
 def _make_client(api_key: str) -> AsyncOpenAI:
     if not GEMINI_BASE_URL:
@@ -136,7 +216,7 @@ def _make_model(client: AsyncOpenAI, lite: bool = False) -> OpenAIChatCompletion
 class ERPAnalysisAgent:
     """
     Stateless agent wrapper. Create one per task invocation.
-    The gemini_api_key is the DECRYPTED plaintext key - decryption is done
+    The gemini_api_key is the DECRYPTED plaintext key — decryption is done
     by the caller (task layer) via accounts.services.crypto.decrypt_api_key.
     """
 
@@ -148,8 +228,6 @@ class ERPAnalysisAgent:
 
     def _build_model(self, lite: bool = False) -> OpenAIChatCompletionsModel:
         return _make_model(self._client, lite=lite)
-
-    # ── Public interface ──────────────────────────────────────────────────────
 
     def analyze(self, description: str) -> ERPModuleConfig:
         """
@@ -175,10 +253,7 @@ class ERPAnalysisAgent:
 
         config: ERPModuleConfig = result.final_output
 
-        logger.info(
-            "ERP agent finished. Enabled modules: %s",
-            config.enabled_modules(),
-        )
+        logger.info("ERP agent finished. Enabled modules: %s", config.enabled_modules())
 
         return config
 
@@ -189,159 +264,30 @@ class BusinessAnalystAgent:
     """
     Stateful Business Analyst agent for a specific project.
 
-    Create one instance per request (not per chat). The project_id is used to
-    scope all three DB-querying tools so the agent ONLY sees data from that
-    project, regardless of what the user asks.
+    Tools are imported from ai_agent/tools.py and bound to project_id via closure.
+    See tools.py for the full catalogue of 13 tools.
 
-    gemini_api_key: decrypted plaintext key from the project's admin user.
-    project_id:     PK of the project being analysed.
+    gemini_api_key : decrypted plaintext key from the project's admin user.
+    project_id     : PK of the project being analysed.
     """
 
     def __init__(self, gemini_api_key: str, project_id: int) -> None:
         if not gemini_api_key or not gemini_api_key.strip():
             raise ValueError("A valid Gemini API key is required.")
-        self._api_key   = gemini_api_key.strip()
+        self._api_key    = gemini_api_key.strip()
         self._project_id = project_id
-        self._client    = _make_client(self._api_key)
+        self._client     = _make_client(self._api_key)
 
     def _build_model(self) -> OpenAIChatCompletionsModel:
         return _make_model(self._client, lite=False)
-
-    # ── Project-scoped tools ──────────────────────────────────────────────────
-    # These are regular (sync) functions decorated with @function_tool.
-    # They are defined inside the instance methods so they capture
-    # self._project_id through closure - ensuring project isolation.
-
-    def _make_tools(self) -> list:
-        project_id = self._project_id  # captured by closure
-
-        @function_tool
-        def get_sales_data(months: int = 3) -> str:
-            """
-            Fetch aggregated monthly sales data for the project.
-
-            Args:
-                months: Number of past months to include (default 3, max 24).
-
-            Returns:
-                A summary string with monthly confirmed sales counts and revenue.
-            """
-            from django.utils import timezone
-            from django.db.models import Sum, Count
-            from dateutil.relativedelta import relativedelta
-            from sales.models import Sale, SaleStatus
-
-            months = max(1, min(int(months), 24))
-            now    = timezone.now()
-            rows   = []
-
-            for i in range(months - 1, -1, -1):
-                period_start = (now - relativedelta(months=i)).replace(
-                    day=1, hour=0, minute=0, second=0, microsecond=0
-                )
-                if i == 0:
-                    period_end = now
-                else:
-                    period_end = (now - relativedelta(months=i - 1)).replace(
-                        day=1, hour=0, minute=0, second=0, microsecond=0
-                    )
-
-                agg = Sale.objects.filter(
-                    project_id  = project_id,
-                    status      = SaleStatus.CONFIRMED,
-                    confirmed_at__gte = period_start,
-                    confirmed_at__lt  = period_end,
-                ).aggregate(
-                    total_revenue = Sum("total_amount"),
-                    sale_count    = Count("id"),
-                )
-
-                label   = period_start.strftime("%B %Y")
-                revenue = agg["total_revenue"] or 0
-                count   = agg["sale_count"]   or 0
-                rows.append(f"{label}: {count} sales, revenue = {revenue:.2f}")
-
-            if not rows:
-                return "No confirmed sales data found for this project."
-
-            return "Monthly Sales Data (confirmed only):\n" + "\n".join(rows)
-
-        @function_tool
-        def get_products_data() -> str:
-            """
-            Fetch the list of active products for the project.
-
-            Returns:
-                A summary string listing all active products with name, SKU,
-                category, price, and cost price.
-            """
-            from products.models import Product
-
-            products = Product.objects.filter(
-                project_id = project_id,
-                is_active  = True,
-            ).order_by("name")
-
-            if not products.exists():
-                return "No active products found for this project."
-
-            lines = ["Active Products:"]
-            for p in products:
-                cost = f"cost={p.cost_price:.2f}" if p.cost_price else "cost=N/A"
-                sku  = p.sku or "no-SKU"
-                cat  = p.category or "uncategorised"
-                lines.append(
-                    f"  • {p.name} | SKU: {sku} | Category: {cat} | "
-                    f"Price: {p.price:.2f} | {cost} | Unit: {p.unit}"
-                )
-
-            return "\n".join(lines)
-
-        @function_tool
-        def get_inventory_data() -> str:
-            """
-            Fetch the current inventory snapshot for all products in the project.
-
-            Returns:
-                A string listing each product's stock level, location, and
-                whether it is low or out of stock.
-            """
-            from inventory.models import Inventory
-
-            records = Inventory.objects.select_related("product").filter(
-                project_id = project_id,
-            ).order_by("product__name")
-
-            if not records.exists():
-                return "No inventory records found for this project."
-
-            lines = ["Inventory Snapshot:"]
-            for inv in records:
-                status = ""
-                if inv.is_out_of_stock:
-                    status = "⚠ OUT OF STOCK"
-                elif inv.is_low_stock:
-                    status = "⚠ LOW STOCK"
-                loc = f" | Location: {inv.location}" if inv.location else ""
-                lines.append(
-                    f"  • {inv.product.name}: qty={inv.quantity} "
-                    f"(threshold={inv.low_stock_threshold}){loc} {status}"
-                )
-
-            return "\n".join(lines)
-
-        return [get_sales_data, get_products_data, get_inventory_data]
-
-    # ── Public interface ──────────────────────────────────────────────────────
 
     def chat(self, history: list[dict], user_message: str) -> str:
         """
         Run the Business Analyst agent with the full conversation history.
 
         Args:
-            history:      List of past turns [{role: str, content: str}, ...].
-                          role must be "user" or "assistant".
-            user_message: The new message from the human.
+            history      : List of past turns [{role: str, content: str}, ...].
+            user_message : The new message from the human.
 
         Returns:
             The assistant's reply as a plain string.
@@ -349,7 +295,8 @@ class BusinessAnalystAgent:
         if not user_message or not user_message.strip():
             raise ValueError("User message cannot be empty.")
 
-        tools = self._make_tools()
+        # All 13 tools, scoped to this project_id
+        tools = build_analyst_tools(self._project_id)
 
         agent = Agent(
             name         = "Business Analyst",
@@ -358,13 +305,10 @@ class BusinessAnalystAgent:
             tools        = tools,
         )
 
-        # Build the full input string from history + new message.
-        # The agents SDK accepts a plain string as input; we inject history
-        # into the prompt so the model has conversation context.
         input_text = _build_input_with_history(history, user_message)
 
         logger.info(
-            "BusinessAnalystAgent running for project_id=%s message=%.80s...",
+            "BusinessAnalystAgent running — project_id=%s message=%.80s...",
             self._project_id, user_message,
         )
 
@@ -373,10 +317,14 @@ class BusinessAnalystAgent:
             input          = input_text,
         )
 
-        reply: str = result.final_output if isinstance(result.final_output, str) else str(result.final_output)
+        reply: str = (
+            result.final_output
+            if isinstance(result.final_output, str)
+            else str(result.final_output)
+        )
 
         logger.info(
-            "BusinessAnalystAgent finished for project_id=%s reply_len=%d",
+            "BusinessAnalystAgent finished — project_id=%s reply_len=%d",
             self._project_id, len(reply),
         )
 
@@ -393,7 +341,6 @@ def _build_input_with_history(history: list[dict], user_message: str) -> str:
       [CONVERSATION HISTORY]
       User: ...
       Assistant: ...
-      ...
       [NEW MESSAGE]
       User: <user_message>
     """
@@ -413,14 +360,9 @@ def _build_input_with_history(history: list[dict], user_message: str) -> str:
 
 
 # ── Module-level convenience functions ────────────────────────────────────────
-# Called by tasks.py and service layer. Keeps call sites clean.
 
 def analyze_description(decrypted_api_key: str, description: str) -> ERPModuleConfig:
-    """
-    Entry point used by tasks.py.
-    Raises ValueError / RuntimeError on misconfiguration or bad input.
-    All other exceptions (network, auth) propagate to Celery for retry logic.
-    """
+    """Entry point used by tasks.py."""
     agent = ERPAnalysisAgent(gemini_api_key=decrypted_api_key)
     return agent.analyze(description)
 
@@ -431,10 +373,7 @@ def run_analyst_chat(
     history: list[dict],
     user_message: str,
 ) -> str:
-    """
-    Entry point used by agent_service.py.
-    Returns the assistant reply string.
-    """
+    """Entry point used by agent_service.py."""
     agent = BusinessAnalystAgent(
         gemini_api_key = decrypted_api_key,
         project_id     = project_id,
