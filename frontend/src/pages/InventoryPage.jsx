@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { getInventory, stockIn, stockOut, adjustStock, updateInventory, deleteInventory, getLowStock, getOutOfStock, createInventory } from '../api/inventory';
+import { getInventory, getInventoryRecord, stockIn, stockOut, adjustStock, updateInventory, deleteInventory, getLowStock, getOutOfStock, createInventory } from '../api/inventory';
 import { useDebounce } from '../hooks/useDebounce';
 import InventoryTable from '../components/inventory/InventoryTable';
 import InventoryDetailPanel from '../components/inventory/InventoryDetailPanel';
@@ -323,7 +323,18 @@ const InventoryPage = () => {
                 <InventoryTable
                     inventory={inventory}
                     role={user?.role}
-                    onRowClick={setSelectedInventory}
+                    onRowClick={async (item) => {
+                        // Set list item immediately so panel opens instantly
+                        setSelectedInventory(item);
+                        // Fetch full detail to get created_at and all fields
+                        try {
+                            const response = await getInventoryRecord(projectId, item.id);
+                            setSelectedInventory(response.data);
+                        } catch (err) {
+                            console.error('Failed to fetch inventory detail:', err);
+                            // Keep the list item data — panel still shows partial info
+                        }
+                    }}
                     onStockIn={(item) => {
                         setSelectedInventory(item);
                         setShowStockInModal(true);

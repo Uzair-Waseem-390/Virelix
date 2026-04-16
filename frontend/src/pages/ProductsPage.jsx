@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { getProducts, createProduct, updateProduct, deleteProduct, activateProduct, deactivateProduct } from '../api/products';
+import { getProducts, getProduct, createProduct, updateProduct, deleteProduct, activateProduct, deactivateProduct } from '../api/products';
 import { useDebounce } from '../hooks/useDebounce';
 import ProductsTable from '../components/products/ProductsTable';
 import ProductDetailPanel from '../components/products/ProductDetailPanel';
@@ -138,8 +138,17 @@ const ProductsPage = () => {
         }
     };
 
-    const handleRowClick = (product) => {
+    const handleRowClick = async (product) => {
+        // Set list item immediately so panel opens instantly
         setSelectedProduct(product);
+        // Then fetch full detail to get created_by_email and all fields
+        try {
+            const response = await getProduct(projectId, product.id);
+            setSelectedProduct(response.data);
+        } catch (err) {
+            console.error('Failed to fetch product detail:', err);
+            // Keep the list item data — panel still shows partial info
+        }
     };
 
     const handleEditClick = (product) => {
