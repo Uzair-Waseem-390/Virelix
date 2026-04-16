@@ -108,7 +108,7 @@ const PasswordGate = ({ onSuccess }) => {
         setError('');
         try {
             await verifyPassword(pwd.trim());
-            sessionStorage.setItem('de_password', pwd.trim());
+            localStorage.setItem('de_password', pwd.trim());
             onSuccess();
         } catch (err) {
             setError(err.response?.data?.detail || 'Invalid password.');
@@ -282,7 +282,7 @@ const INITIAL_FORM = {
     orders_per_day:  5,
 };
 
-const DataEntryTool = () => {
+const DataEntryTool = ({ onLogout }) => {
     // wizard state
     const [step, setStep]               = useState(0);
     const [users, setUsers]             = useState([]);
@@ -295,6 +295,8 @@ const DataEntryTool = () => {
     // form
     const [form, setForm]   = useState(INITIAL_FORM);
     const [errors, setErrors] = useState({});
+    const [confirmPwd, setConfirmPwd] = useState('');
+    const [showConfirmPwd, setShowConfirmPwd] = useState(false);
 
     // async
     const [loading, setLoading]   = useState(false);
@@ -386,6 +388,9 @@ const DataEntryTool = () => {
         if (!orders_per_day || orders_per_day < 1 || orders_per_day > 1000)
             e.orders_per_day = 'Must be between 1 and 1,000.';
 
+        if (!confirmPwd.trim())
+            e.confirmPwd = 'Please enter the password to confirm generation.';
+
         setErrors(e);
         return Object.keys(e).length === 0;
     };
@@ -401,6 +406,17 @@ const DataEntryTool = () => {
         setSubmitting(true);
         setApiError('');
         setResult(null);
+
+        // Step 1: verify the password before doing anything
+        try {
+            await verifyPassword(confirmPwd.trim());
+        } catch {
+            setErrors(prev => ({ ...prev, confirmPwd: 'Incorrect password. Please try again.' }));
+            setSubmitting(false);
+            return;
+        }
+
+        // Step 2: password is correct — generate data
         try {
             const res = await generateData({
                 project_id:      selectedProject.id,
@@ -410,8 +426,10 @@ const DataEntryTool = () => {
                 customers_count: Number(form.customers_count),
                 products_count:  Number(form.products_count),
                 orders_per_day:  Number(form.orders_per_day),
+                password:        confirmPwd.trim(),
             });
             setResult({ success: true, history_id: res.data.history_id });
+            setConfirmPwd('');
         } catch (err) {
             const detail = err.response?.data?.detail;
             const fieldErrors = err.response?.data;
@@ -442,9 +460,21 @@ const DataEntryTool = () => {
                             <p className="text-xs text-slate-400">Developer utility · Internal use only</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-slate-400">
-                        <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                        Authenticated
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 text-xs text-slate-400">
+                            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                            Authenticated
+                        </div>
+                        <button
+                            onClick={onLogout}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 border border-slate-200 hover:border-red-200 rounded-lg transition-all"
+                            title="Clear saved password and lock tool"
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                            Lock
+                        </button>
                     </div>
                 </div>
             </div>
@@ -636,23 +666,66 @@ const DataEntryTool = () => {
                                     </div>
                                 </div>
 
-                                <div className="mt-6 pt-5 border-t border-slate-100 flex justify-end">
-                                    <button
-                                        onClick={handleSubmit}
-                                        disabled={submitting}
-                                        className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold text-sm hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md disabled:opacity-60"
-                                    >
-                                        {submitting ? (
-                                            <><Spinner size="sm" /> Generating...</>
-                                        ) : (
-                                            <>
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                                </svg>
-                                                Generate Data
-                                            </>
+                                <div className="mt-6 pt-5 border-t border-slate-100">
+                                    {/* Password confirmation before generate */}
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                                            Confirm Password
+                                            <span className="ml-1.5 text-xs text-slate-400 font-normal">
+                                                (re-enter to confirm generation)
+                                            </span>
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type={showConfirmPwd ? 'text' : 'password'}
+                                                value={confirmPwd}
+                                                onChange={e => {
+                                                    setConfirmPwd(e.target.value);
+                                                    if (errors.confirmPwd) setErrors(prev => ({ ...prev, confirmPwd: '' }));
+                                                }}
+                                                placeholder="Enter your access password to proceed"
+                                                className={`${inputCls(errors.confirmPwd)} pr-10`}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowConfirmPwd(s => !s)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                                            >
+                                                {showConfirmPwd ? (
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                                    </svg>
+                                                ) : (
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                    </svg>
+                                                )}
+                                            </button>
+                                        </div>
+                                        {errors.confirmPwd && (
+                                            <p className="mt-1 text-xs text-red-500">{errors.confirmPwd}</p>
                                         )}
-                                    </button>
+                                    </div>
+
+                                    <div className="flex justify-end">
+                                        <button
+                                            onClick={handleSubmit}
+                                            disabled={submitting}
+                                            className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold text-sm hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md disabled:opacity-60"
+                                        >
+                                            {submitting ? (
+                                                <><Spinner size="sm" /> Generating...</>
+                                            ) : (
+                                                <>
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                    </svg>
+                                                    Generate Data
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -770,14 +843,19 @@ const SuccessCard = ({ historyId, onReset }) => (
 
 const DataEntryPage = () => {
     const [authenticated, setAuthenticated] = useState(
-        () => !!sessionStorage.getItem('de_password')
+        () => !!localStorage.getItem('de_password')
     );
+
+    const handleLogout = () => {
+        localStorage.removeItem('de_password');
+        setAuthenticated(false);
+    };
 
     if (!authenticated) {
         return <PasswordGate onSuccess={() => setAuthenticated(true)} />;
     }
 
-    return <DataEntryTool />;
+    return <DataEntryTool onLogout={handleLogout} />;
 };
 
 export default DataEntryPage;

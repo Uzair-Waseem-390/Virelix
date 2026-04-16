@@ -9,7 +9,7 @@ const de = axios.create({
 
 // Inject password header + query param on every request
 de.interceptors.request.use((config) => {
-    const pwd = sessionStorage.getItem('de_password');
+    const pwd = localStorage.getItem('de_password');
     if (pwd) {
         config.headers['X-DataEntry-Password'] = pwd;
         // Also add as query param for GET requests as fallback
@@ -32,10 +32,8 @@ export const listProjects     = (userId) =>
 export const listMembers      = (projectId) =>
     de.get('/project-members/', { params: { project_id: projectId } });
 
-export const generateData     = (payload) => {
-    const pwd = sessionStorage.getItem('de_password');
-    return de.post('/generate/', { ...payload, password: pwd });
-};
+export const generateData     = (payload) =>
+    de.post('/generate/', payload);
 
 export const getHistory       = (projectId) =>
     de.get('/history/', { params: { project_id: projectId } });
