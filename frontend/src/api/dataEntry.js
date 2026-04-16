@@ -1,18 +1,28 @@
 import axios from 'axios';
 
-// Standalone axios instance — no JWT, uses password header + query param
-const de = axios.create({
-    baseURL: 'http://127.0.0.1:8000/data_entry',
+const BASE = 'http://127.0.0.1:8000/data_entry';
+
+// ── Clean instance — NO interceptor, used only for password verification ──────
+// This ensures the typed password is the ONLY credential sent.
+// The interceptor on `de` would inject the stored password from localStorage
+// and override whatever the user typed, making wrong passwords appear valid.
+const deClean = axios.create({
+    baseURL: BASE,
     timeout: 60000,
     headers: { 'Content-Type': 'application/json' },
 });
 
-// Inject password header + query param on every request
+// ── Main instance — injects stored password on every request ──────────────────
+const de = axios.create({
+    baseURL: BASE,
+    timeout: 60000,
+    headers: { 'Content-Type': 'application/json' },
+});
+
 de.interceptors.request.use((config) => {
     const pwd = localStorage.getItem('de_password');
     if (pwd) {
         config.headers['X-DataEntry-Password'] = pwd;
-        // Also add as query param for GET requests as fallback
         if (config.method === 'get') {
             config.params = { ...config.params, password: pwd };
         }
@@ -20,20 +30,23 @@ de.interceptors.request.use((config) => {
     return config;
 });
 
-export const verifyPassword  = (password) =>
-    de.post('/verify-password/', { password });
+// ── API calls ─────────────────────────────────────────────────────────────────
 
-export const listUsers        = () =>
+// Uses deClean — only the typed password is sent, no stored header injection
+export const verifyPassword = (password) =>
+    deClean.post('/verify-password/', { password });
+
+export const listUsers = () =>
     de.get('/users/');
 
-export const listProjects     = (userId) =>
+export const listProjects = (userId) =>
     de.get('/projects/', { params: { user_id: userId } });
 
-export const listMembers      = (projectId) =>
+export const listMembers = (projectId) =>
     de.get('/project-members/', { params: { project_id: projectId } });
 
-export const generateData     = (payload) =>
+export const generateData = (payload) =>
     de.post('/generate/', payload);
 
-export const getHistory       = (projectId) =>
+export const getHistory = (projectId) =>
     de.get('/history/', { params: { project_id: projectId } });
