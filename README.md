@@ -138,7 +138,7 @@ The backend is organized into modular apps, each handling specific business doma
 - **Module Configuration Agent**: Analyzes business descriptions asynchronously via Celery to configure ERP modules
 - **Per-Project ERP Agent** *(New)*: A dedicated conversational agent scoped to each project — it understands the project's data and answers any ERP-related query from users. Queries are validated by the backend, dispatched to a Celery task, and responses are returned asynchronously
 
-**7. Developer Mode (`developer` app)** *(New)*
+**7. Developer Mode (`data_entry` app)** *(New)*
 - Password-protected access layer — activation requires a secure developer password independent of user roles
 - Allows authorized developers to inject data into any ERP system (products, inventory, sales records, etc.)
 - Backend validates all incoming developer data before queuing it as a background task via Celery + Redis
