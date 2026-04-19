@@ -20,31 +20,46 @@ Virelix is an intelligent, AI-powered Enterprise Resource Planning (ERP) system 
 - AI automatically determines which modules you need (Products, Inventory, Sales)
 - No manual configuration required
 
+### 💬 Per-Project AI ERP Agent *(New)*
+- Every project has its own dedicated AI agent
+- Ask any question about your ERP data and operations — the agent understands the full context of that specific project
+- Agent responses are processed asynchronously via Celery + Redis for non-blocking performance
+- Backend validates every query before dispatching to the background task queue
+- Built on the OpenAI SDK with Gemini Flash 2.5 as the underlying LLM
+
+### 🛠️ Developer Mode *(New)*
+- A secure, password-protected mode that allows authorized developers to inject data directly into any ERP system
+- Access is fully restricted — only users with the correct secure password can activate developer mode
+- All data is validated by the backend before being pushed to background task processing
+- Complete history of all developer-injected data is accessible through the job history panel, powered by Celery + Redis
+
 ### 📦 Complete ERP Modules
-- **Products Management** - Full CRUD operations with SKU tracking, categories, and pricing
-- **Inventory Management** - Stock tracking, low stock alerts, movement history, stock adjustments
-- **Sales Management** - Create sales, confirm orders, automatic inventory deduction, sales history
+- **Products Management** — Full CRUD operations with SKU tracking, categories, and pricing
+- **Inventory Management** — Stock tracking, low stock alerts, movement history, stock adjustments
+- **Sales Management** — Create sales, confirm orders, automatic inventory deduction, sales history
 
 ### 👥 Role-Based Access Control
-- **Admin** - Full system access, project management, team management, all settings
-- **Manager** - Operational access, can create/update products, manage inventory, process sales
-- **Staff** - Limited read access with basic operations (view products, process sales)
+- **Admin** — Full system access, project management, team management, all settings
+- **Manager** — Operational access, can create/update products, manage inventory, process sales
+- **Staff** — Limited read access with basic operations (view products, process sales)
 
 ### 📊 Intelligent Dashboards
-- **Admin Dashboard** - Cross-project analytics, alerts, and overview across all projects
-- **Project Dashboard** - Project-specific metrics, module access, and real-time stats
+- **Admin Dashboard** — Cross-project analytics, alerts, and overview across all projects
+- **Project Dashboard** — Project-specific metrics, module access, and real-time stats
 
 ### 🔐 Enterprise Security
 - JWT-based authentication with automatic token refresh
 - Project-level data isolation (no cross-project data access)
 - Encrypted sensitive data (Gemini API keys using Fernet encryption)
 - Role-based permissions for every action
+- Developer mode secured behind an independent password layer
 
 ### ⚡ Real-time Features
 - Live stock level updates
 - Automatic inventory deduction on sales confirmation
-- Background job processing with Celery
+- Background job processing with Celery + Redis
 - Real-time low stock alerts
+
 ---
 
 ## 📸 Screenshots
@@ -78,7 +93,7 @@ Virelix follows a modern, scalable client-server architecture with clear separat
 The frontend is built as a Single Page Application (SPA) using React 19 and Vite for fast development and optimal performance.
 
 **Key Components:**
-- **Page Components**: Admin Dashboard, Project Dashboard, Products, Inventory, and Sales pages - each responsible for specific business functions
+- **Page Components**: Admin Dashboard, Project Dashboard, Products, Inventory, Sales, and Agent Chat pages — each responsible for specific business functions
 - **Reusable Components**: Modal dialogs, tables, forms, and UI elements shared across multiple pages
 - **State Management**: Zustand handles global state including authentication tokens, user data, and dashboard information
 - **API Service Layer**: Axios instances with interceptors manage all backend communication, including automatic JWT token refresh
@@ -120,9 +135,14 @@ The backend is organized into modular apps, each handling specific business doma
 
 **6. AI Agent (`ai_agent` app)**
 - Uses OpenAI SDK with Gemini Flash 2.5 as the LLM
-- Analyzes business descriptions asynchronously via Celery
-- Returns structured module configuration (products, inventory, sales)
-- Updates project settings automatically after analysis
+- **Module Configuration Agent**: Analyzes business descriptions asynchronously via Celery to configure ERP modules
+- **Per-Project ERP Agent** *(New)*: A dedicated conversational agent scoped to each project — it understands the project's data and answers any ERP-related query from users. Queries are validated by the backend, dispatched to a Celery task, and responses are returned asynchronously
+
+**7. Developer Mode (`developer` app)** *(New)*
+- Password-protected access layer — activation requires a secure developer password independent of user roles
+- Allows authorized developers to inject data into any ERP system (products, inventory, sales records, etc.)
+- Backend validates all incoming developer data before queuing it as a background task via Celery + Redis
+- Complete job history is stored and accessible via the developer history panel, showing every background task dispatched, its status, and its result
 
 ### Database Layer (PostgreSQL)
 
@@ -130,16 +150,44 @@ PostgreSQL serves as the primary database with several key design patterns:
 
 - **Data Isolation**: Each project's data (products, inventory, sales) is isolated via foreign keys to the Project model
 - **Soft Delete**: Products and inventory records use `is_active` flags instead of permanent deletion
-- **Audit Trail**: Inventory movements and sales status changes are recorded with timestamps and user information
+- **Audit Trail**: Inventory movements, sales status changes, agent interactions, and developer job history are all recorded with timestamps and user information
 - **Row-Level Security**: All queries are scoped to the authenticated user's project access
 
 ### Background Task Processing (Redis + Celery)
 
-Celery with Redis as the message broker handles asynchronous operations:
+Celery with Redis as the message broker handles all asynchronous operations:
 
-- **AI Module Analysis**: When a project is created, a Celery task runs the AI analysis without blocking the user
+| Task | Trigger | Description |
+|------|---------|-------------|
+| AI Module Analysis | Project creation | Analyzes business description to configure modules |
+| ERP Agent Response | User query submission | Runs the per-project AI agent and returns response |
+| Developer Data Injection | Developer mode submission | Validates and injects developer-supplied data into the ERP |
 
-### Request Flow Example
+### Request Flow: ERP Agent Query *(New)*
+
+When a user asks the ERP agent a question:
+
+1. **Frontend**: User types a question in the Agent Chat interface → submits query
+2. **API Layer**: Axios sends the query with JWT token to the backend
+3. **Backend Validation**: Django view validates the user's permissions and the query payload
+4. **Task Dispatch**: A Celery task is created and pushed to the Redis queue
+5. **Agent Execution**: The per-project AI agent (Gemini Flash 2.5 via OpenAI SDK) processes the query with full awareness of the project's ERP context
+6. **Response Storage**: The agent's answer is stored and associated with the task
+7. **Polling / Response**: Frontend polls or awaits the result and displays the agent's response to the user
+
+### Request Flow: Developer Mode *(New)*
+
+When an authorized developer injects data:
+
+1. **Authentication**: Developer activates developer mode by providing the secure developer password
+2. **Data Submission**: Developer submits data (e.g., bulk products, inventory records) through the developer interface
+3. **Backend Validation**: Django validates the data schema and field constraints before any processing
+4. **Task Dispatch**: Valid data is pushed to the Celery task queue via Redis
+5. **Background Execution**: The task processes and writes data into the target ERP system
+6. **History Recording**: The job is logged with its status (pending / success / failed) and the data payload
+7. **History Access**: Developer can view the complete history of all previous injections from the history panel
+
+### Request Flow: Standard Module Operation
 
 When a user creates a new product:
 
@@ -149,22 +197,11 @@ When a user creates a new product:
 4. **Service Layer**: Business logic validates data → creates product record in database
 5. **Response**: Serialized product data returns to frontend → Zustand state updates → table refreshes
 
-### AI Analysis Flow
-
-When an admin creates a new project:
-
-1. **Project Creation**: Frontend sends project name and business description to backend
-2. **Immediate Response**: Backend returns `202 Accepted` with project ID and task ID
-3. **Background Processing**: Celery task starts with the business description
-4. **AI Analysis**: Gemini Flash 2.5 analyzes the description and determines required modules
-5. **Database Update**: Project is updated with enabled modules (products, inventory, sales)
-6. **Polling**: Frontend polls `/ai-status/` endpoint every 3 seconds until analysis completes
-7. **User Notification**: User sees the configured modules in their project dashboard
-
 ### Security Architecture
 
 - **Authentication**: JWT tokens with access and refresh tokens (access token expires in 5 minutes, refresh token in 24 hours)
 - **Authorization**: Role-based access control at both view and service layers
+- **Developer Mode Security**: Protected by a separate, independently managed secure password — no regular user or admin credential grants access
 - **Data Encryption**: Sensitive data (Gemini API keys) encrypted using Fernet symmetric encryption
 - **CORS**: Configured to allow only trusted origins (localhost for development)
 - **SQL Injection Protection**: Django ORM automatically parameterizes queries
@@ -173,21 +210,32 @@ When an admin creates a new project:
 
 ## 🤖 AI Workflow Explanation
 
-Virelix uses Google's Gemini AI (via OpenAI SDK agent with Gemini Flash 2.5 as LLM) to intelligently configure ERP modules based on your business description:
+Virelix uses Google's Gemini AI (via OpenAI SDK with Gemini Flash 2.5 as LLM) for two distinct AI-powered workflows:
 
-### Step-by-Step AI Analysis Process:
+### Workflow 1: Module Configuration (on Project Creation)
 
 | Step | Action |
 |------|--------|
-| **Step 1** | User creates a project with business description |
-| **Step 2** | System dispatches Celery task for AI analysis |
-| **Step 3** | AI Agent (Gemini Flash 2.5) reads and analyzes business description |
-| **Step 4** | AI decides which modules are needed |
-| **Step 5** | System updates project with enabled modules |
-| **Step 6** | User sees configured modules in dashboard |
-| **Step 7** | User can now access enabled modules |
+| **Step 1** | User creates a project with a business description |
+| **Step 2** | System dispatches a Celery task for AI analysis |
+| **Step 3** | AI Agent reads and analyzes the business description |
+| **Step 4** | AI decides which modules are needed (Products, Inventory, Sales) |
+| **Step 5** | System updates the project with enabled modules |
+| **Step 6** | User sees configured modules in the dashboard |
+| **Step 7** | User can now access and use the enabled modules |
 
-### Example AI Decisions:
+### Workflow 2: Per-Project ERP Agent *(New)*
+
+| Step | Action |
+|------|--------|
+| **Step 1** | User submits a question to the project's ERP agent |
+| **Step 2** | Backend validates the request and user permissions |
+| **Step 3** | Query is dispatched as a background Celery task |
+| **Step 4** | Agent (Gemini Flash 2.5) processes the query within the project's ERP context |
+| **Step 5** | Response is stored and returned to the frontend |
+| **Step 6** | User sees the agent's answer in the chat interface |
+
+### Example AI Module Decisions
 
 | Business Description | Products | Inventory | Sales |
 |---------------------|----------|-----------|-------|
@@ -213,7 +261,7 @@ Virelix uses Google's Gemini AI (via OpenAI SDK agent with Gemini Flash 2.5 as L
 | djangorestframework-simplejwt | 5.5 | JWT authentication |
 | cryptography | 46.0 | Data encryption |
 | google-generativeai | 0.8 | Gemini AI integration |
-| openai-agents | 0.13 | AI agent framework |
+| openai-agents | 0.13 | AI agent framework (module config + ERP agent) |
 
 ### Frontend
 
@@ -294,6 +342,9 @@ PORT=5432
 # Gemini AI Configuration
 GEMINI_BASE_URL=https://generativelanguage.googleapis.com
 FERNET_KEY=your-fernet-key-here
+
+# Developer Mode
+DEVELOPER_MODE_PASSWORD=your-secure-developer-password-here
 ```
 
 #### Initialize Database and Run Server
@@ -346,6 +397,8 @@ npm run dev
 6. Create your first project with a business description
 7. Let AI analyze and configure your ERP modules
 8. Start using your personalized ERP system!
+9. *(Optional)* Use the **Agent Chat** within any project to ask ERP-related questions
+10. *(Optional)* Activate **Developer Mode** with the secure developer password to manage data directly
 
 ---
 
@@ -390,6 +443,23 @@ The collection includes all endpoints with example requests and responses.
 | PATCH | `/projects/{id}/` | Update project | Admin |
 | DELETE | `/projects/{id}/` | Delete project | Admin |
 | GET | `/projects/{id}/ai-status/` | Check AI analysis status | Admin |
+
+#### ERP Agent *(New)*
+
+| Method | Endpoint | Description | Role |
+|--------|----------|-------------|------|
+| POST | `/projects/{pid}/agent/query/` | Submit query to project ERP agent | All |
+| GET | `/projects/{pid}/agent/status/{task_id}/` | Poll agent task status | All |
+| GET | `/projects/{pid}/agent/history/` | View agent query history | All |
+
+#### Developer Mode *(New)*
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|--------------|
+| POST | `/developer/auth/` | Authenticate with developer password | Yes (JWT) |
+| POST | `/developer/inject/` | Inject data into an ERP system | Yes (JWT + Dev Password) |
+| GET | `/developer/history/` | View full developer job history | Yes (JWT + Dev Password) |
+| GET | `/developer/history/{job_id}/` | Get details of a specific job | Yes (JWT + Dev Password) |
 
 #### Products
 
@@ -455,11 +525,15 @@ The collection includes all endpoints with example requests and responses.
 
 ## 🔄 Background Jobs (Celery)
 
-Virelix uses Celery + Redis for asynchronous task processing:
+Virelix uses Celery + Redis for all asynchronous task processing:
 
-| Task | Trigger | Frequency | Description |
-|------|---------|-----------|-------------|
-| AI Module Analysis | Project creation | On-demand | Analyzes business description to configure modules |
+| Task | Trigger | Description |
+|------|---------|-------------|
+| AI Module Analysis | Project creation | Analyzes business description to configure ERP modules |
+| ERP Agent Query | User submits question | Runs the per-project AI agent and returns a response |
+| Developer Data Injection | Developer mode submission | Validates and injects developer-supplied data into the ERP system |
+
+All tasks are tracked and their statuses (pending / success / failed) are stored for auditability. Developer-injected job history is fully browsable from the developer panel.
 
 ---
 
@@ -492,6 +566,13 @@ Virelix uses Celery + Redis for asynchronous task processing:
 | Confirm sale | ✅ | ✅ | ✅ |
 | Cancel sale | ✅ | ✅ | ❌ |
 | Delete sale (draft) | ✅ | ✅ | ❌ |
+| **ERP Agent** *(New)* | | | |
+| Ask agent a question | ✅ | ✅ | ✅ |
+| View agent query history | ✅ | ✅ | ✅ |
+| **Developer Mode** *(New)* | | | |
+| Activate developer mode | Requires Dev Password | Requires Dev Password | Requires Dev Password |
+| Inject data into ERP | Requires Dev Password | Requires Dev Password | Requires Dev Password |
+| View developer job history | Requires Dev Password | Requires Dev Password | Requires Dev Password |
 | **Team Management** | | | |
 | View team members | ✅ | ❌ | ❌ |
 | Edit team members | ✅ | ❌ | ❌ |
@@ -520,6 +601,7 @@ python manage.py test accounts
 python manage.py test products
 python manage.py test inventory
 python manage.py test sales
+python manage.py test ai_agent
 
 # Run with verbosity
 python manage.py test --verbosity=2
@@ -548,11 +630,12 @@ npm run preview
 Virelix/
 ├── backend/                          # Django Backend
 │   ├── accounts/                     # User authentication & management
-│   ├── projects/                     # Project management & AI
+│   ├── projects/                     # Project management & AI module config
 │   ├── products/                     # Product management
 │   ├── inventory/                    # Stock management
 │   ├── sales/                        # Sales transactions
-│   ├── ai_agent/                     # AI module configuration
+│   ├── ai_agent/                     # AI module configuration + per-project ERP agent
+│   ├── developer/                    # Developer mode - secure data injection & job history
 │   ├── virelix/                      # Django settings
 │   └── manage.py                     # Django management script
 │
@@ -560,7 +643,7 @@ Virelix/
 │   ├── src/
 │   │   ├── api/                      # API service layer
 │   │   ├── components/               # Reusable components
-│   │   ├── pages/                    # Page components
+│   │   ├── pages/                    # Page components (incl. AgentChat, DeveloperMode)
 │   │   ├── store/                    # Zustand state management
 │   │   ├── hooks/                    # Custom React hooks
 │   │   └── utils/                    # Helper functions
@@ -570,7 +653,7 @@ Virelix/
 ├── images/                           # README screenshots
 │   ├── landing_page.png
 │   ├── admin_dashboard.png
-│   ├── projectdashboard.png
+│   ├── project_dashboard.png
 │   ├── products.png
 │   ├── inventory.png
 │   └── sales.png
@@ -642,12 +725,11 @@ For support, please contact:
 
 ## 🙏 Acknowledgments
 
-- [**Google Gemini AI**](https://deepmind.google/technologies/gemini/) - Powering the intelligent module configuration
-- [**Django REST Framework**](https://www.django-rest-framework.org/) - Excellent API framework
-- [**React & Tailwind CSS**](https://reactjs.org) - Amazing frontend tools
-- [**Celery & Redis**](https://docs.celeryq.dev/) - Robust background task processing
-- [**PostgreSQL**](https://www.postgresql.org/) - Reliable database system
-
+- [**Google Gemini AI**](https://deepmind.google/technologies/gemini/) — Powering the intelligent module configuration and per-project ERP agents
+- [**Django REST Framework**](https://www.django-rest-framework.org/) — Excellent API framework
+- [**React & Tailwind CSS**](https://reactjs.org) — Amazing frontend tools
+- [**Celery & Redis**](https://docs.celeryq.dev/) — Robust background task processing for agents, developer jobs, and async workflows
+- [**PostgreSQL**](https://www.postgresql.org/) — Reliable database system
 
 ---
 
