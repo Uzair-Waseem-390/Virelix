@@ -30,6 +30,31 @@ def build_analyst_tools(project_id: int) -> list:
     Import this function in agent.py and call it inside _make_tools().
     """
 
+    # ── 0. Current date/time ─────────────────────────────────────────────────
+    # This is the ONLY way the model should get today's date.
+    # It MUST NOT invent tool names like 'today', 'now', 'current_date', etc.
+
+    @function_tool
+    def get_current_date() -> str:
+        """
+        Get the current date and time (server timezone).
+        Always call this tool FIRST whenever the user's question involves
+        relative time expressions like: today, yesterday, this month, last week,
+        last N months, this year, etc.
+        Use the returned date to construct YYYY-MM-DD values for other tools.
+
+        Returns:
+            Current date and time as a formatted string.
+        """
+        from django.utils import timezone
+        now = timezone.now()
+        return (
+            f"Current date : {now.strftime('%Y-%m-%d')}\n"
+            f"Current time : {now.strftime('%H:%M:%S')}\n"
+            f"Current month: {now.strftime('%B %Y')}\n"
+            f"Day of week  : {now.strftime('%A')}"
+        )
+
     # ── 1. Monthly sales summary ──────────────────────────────────────────────
 
     @function_tool
@@ -559,8 +584,9 @@ def build_analyst_tools(project_id: int) -> list:
             f"  Est. Stock Value: {stock_value:.2f}"
         )
 
-    # ── Return all tools ──────────────────────────────────────────────────────
+    # ── Return all tools — order matters: date helper first ──────────────────
     return [
+        get_current_date,           # MUST be first — resolves 'today', 'this month', etc.
         get_sales_data,
         get_sales_by_date_range,
         get_sales_by_status,
