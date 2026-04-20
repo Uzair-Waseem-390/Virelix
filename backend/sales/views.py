@@ -61,6 +61,7 @@ from sales.services.sale_service import (
     update_sale,
     update_sale_item,
 )
+from backend.paginations import StandardResultsSetPagination
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +129,7 @@ def _get_item_in_sale(item_pk, sale_pk):
 
 class SaleListCreateView(APIView):
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
 
     def get(self, request, project_pk):
         """
@@ -150,8 +152,14 @@ class SaleListCreateView(APIView):
                 sales = sales.filter(status=status_filter)
         else:
             sales = get_sales_for_project(project.pk, status=status_filter)
+        
+        paginator = self.pagination_class()
+        paginated_sales = paginator.paginate_queryset(sales, request)
+        serializer = SaleListSerializer(paginated_sales, many=True)
 
-        return Response(SaleListSerializer(sales, many=True).data)
+        return paginator.get_paginated_response(serializer.data)
+
+        # return Response(SaleListSerializer(sales, many=True).data)
 
     def post(self, request, project_pk):
         """
