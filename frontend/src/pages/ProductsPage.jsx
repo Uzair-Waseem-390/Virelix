@@ -8,6 +8,7 @@ import ProductDetailPanel from '../components/products/ProductDetailPanel';
 import AddProductModal from '../components/products/AddProductModal';
 import EditProductModal from '../components/products/EditProductModal';
 import DeleteProductModal from '../components/products/DeleteProductModal';
+import Pagination from '../components/common/Pagination';
 
 const ProductsPage = () => {
     // Use the correct param name from the route
@@ -26,6 +27,8 @@ const ProductsPage = () => {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [loadingStates, setLoadingStates] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [pagination, setPagination] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
 
     const debouncedSearch = useDebounce(searchTerm, 400);
 
@@ -37,12 +40,25 @@ const ProductsPage = () => {
 
         setLoading(true);
         try {
-            const params = { filter };
+            const params = { filter, page_number: currentPage };
             if (debouncedSearch) {
                 params.search = debouncedSearch;
             }
             const response = await getProducts(projectId, params);
-            setProducts(response.data);
+            // Handle paginated response: { count, page_number, total_pages, results }
+            if (response.data?.results !== undefined) {
+                setProducts(response.data.results);
+                setPagination({
+                    count:       response.data.count,
+                    page_number: response.data.page_number,
+                    page_size:   response.data.page_size,
+                    total_pages: response.data.total_pages,
+                });
+            } else {
+                // Fallback for non-paginated response
+                setProducts(response.data);
+                setPagination(null);
+            }
         } catch (err) {
             console.error('Failed to fetch products:', err);
             if (err.response?.status === 403 && err.response?.data?.detail?.includes('module is not enabled')) {
@@ -51,7 +67,11 @@ const ProductsPage = () => {
         } finally {
             setLoading(false);
         }
-    }, [projectId, filter, debouncedSearch, navigate]);
+    }, [projectId, filter, debouncedSearch, navigate, currentPage]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filter, debouncedSearch]);
 
     useEffect(() => {
         if (projectId) {
@@ -240,6 +260,12 @@ const ProductsPage = () => {
                     onToggleStatus={handleToggleStatus}
                     onDelete={handleDeleteClick}
                     loadingStates={loadingStates}
+                />
+
+                {/* Pagination */}
+                <Pagination
+                    pagination={pagination}
+                    onPageChange={(page) => setCurrentPage(page)}
                 />
             </div>
 

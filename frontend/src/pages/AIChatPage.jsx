@@ -87,7 +87,7 @@ const AIChatPage = () => {
         setSending(true);
         setError('');
 
-        // Optimistic user message
+        // Optimistic user message — shown immediately while waiting
         const tempUserMsg = { id: `temp-${Date.now()}`, role: 'user', content: text, created_at: new Date().toISOString() };
         setMessages(prev => [...prev, tempUserMsg]);
 
@@ -95,26 +95,57 @@ const AIChatPage = () => {
             const res = await sendMessage(project_pk, chatId, text);
             const { user_message, assistant_message } = res.data;
 
-            // Replace temp with real + add assistant reply
+            // Replace temp with confirmed messages from the server
             setMessages(prev => [
                 ...prev.filter(m => m.id !== tempUserMsg.id),
                 user_message,
                 assistant_message,
             ]);
 
-            // Update chat title if it changed (first message sets it)
+            // Update chat title after first message
             if (chat?.title === 'New Chat') {
                 setChat(prev => ({ ...prev, title: user_message.content.slice(0, 60) }));
             }
         } catch (err) {
-            // Remove optimistic message on error
-            setMessages(prev => prev.filter(m => m.id !== tempUserMsg.id));
-            setError(err.response?.data?.detail || 'Failed to send message. Please try again.');
+            // ── Timeout / broken-pipe recovery ───────────────────────────────
+            // The backend saves both messages even if the HTTP connection drops.
+            // Detect a client-side timeout (code=ECONNABORTED) or a network
+            // error (no response received) and try to recover automatically.
+            const isTimeoutOrNetwork =
+                err.code === 'ECONNABORTED' ||          // axios timeout
+                err.code === 'ERR_NETWORK' ||           // no response at all
+                !err.response;                          // any other connection loss
+
+            if (isTimeoutOrNetwork) {
+                // Keep the optimistic user message visible and show a soft notice
+                setError('The AI is taking longer than expected. Fetching response...');
+
+                // Wait briefly then reload the full chat — the backend will
+                // have saved both the user message and the AI reply by now.
+                setTimeout(async () => {
+                    try {
+                        const recovery = await getChat(project_pk, chatId);
+                        setMessages(recovery.data.messages || []);
+                        setChat(recovery.data);
+                        setError('');    // clear the temporary notice
+                    } catch {
+                        // Recovery also failed — keep the error visible
+                        setMessages(prev => prev.filter(m => m.id !== tempUserMsg.id));
+                        setError('Could not fetch AI response. Please refresh the page.');
+                    }
+                }, 1500);
+            } else {
+                // For real server errors (4xx / 5xx) remove the optimistic
+                // message and show the backend's error detail.
+                setMessages(prev => prev.filter(m => m.id !== tempUserMsg.id));
+                setError(err.response?.data?.detail || 'Failed to send message. Please try again.');
+            }
         } finally {
             setSending(false);
             inputRef.current?.focus();
         }
     };
+
 
     const handleKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {

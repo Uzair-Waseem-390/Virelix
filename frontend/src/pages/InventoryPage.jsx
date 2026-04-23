@@ -12,6 +12,7 @@ import AdjustStockModal from '../components/inventory/AdjustStockModal';
 import EditInventoryModal from '../components/inventory/EditInventoryModal';
 import DeleteInventoryModal from '../components/inventory/DeleteInventoryModal';
 import StockAlertBanner from '../components/inventory/StockAlertBanner';
+import Pagination from '../components/common/Pagination';
 
 const InventoryPage = () => {
     // Use the correct param name from the route
@@ -26,6 +27,8 @@ const InventoryPage = () => {
     const [filter, setFilter] = useState('all');
     const [selectedInventory, setSelectedInventory] = useState(null);
     const [alertCounts, setAlertCounts] = useState({ low_stock: 0, out_of_stock: 0 });
+    const [pagination, setPagination] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
 
     // Modal states
     const [showAddModal, setShowAddModal] = useState(false);
@@ -65,13 +68,24 @@ const InventoryPage = () => {
 
         setLoading(true);
         try {
-            const params = {};
+            const params = { page_number: currentPage };
             if (filter === 'low') params.filter = 'low';
             if (filter === 'out') params.filter = 'out';
             if (debouncedSearch) params.search = debouncedSearch;
 
             const response = await getInventory(projectId, params);
-            setInventory(response.data);
+            if (response.data?.results !== undefined) {
+                setInventory(response.data.results);
+                setPagination({
+                    count:       response.data.count,
+                    page_number: response.data.page_number,
+                    page_size:   response.data.page_size,
+                    total_pages: response.data.total_pages,
+                });
+            } else {
+                setInventory(response.data);
+                setPagination(null);
+            }
         } catch (err) {
             console.error('Failed to fetch inventory:', err);
             if (err.response?.status === 403 && err.response?.data?.detail?.includes('module is not enabled')) {
@@ -80,7 +94,11 @@ const InventoryPage = () => {
         } finally {
             setLoading(false);
         }
-    }, [projectId, filter, debouncedSearch, navigate]);
+    }, [projectId, filter, debouncedSearch, navigate, currentPage]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filter, debouncedSearch]);
 
     useEffect(() => {
         if (projectId) {
@@ -288,7 +306,7 @@ const InventoryPage = () => {
                         <div className="flex items-center gap-3">
                             <span className="text-sm text-gray-600">Total:</span>
                             <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-sm font-medium">
-                                {inventory.length} items
+                                {pagination ? pagination.count : inventory.length} items
                             </span>
                         </div>
 
@@ -360,6 +378,12 @@ const InventoryPage = () => {
                         setShowDeleteModal(true);
                     }}
                     loadingStates={loadingStates}
+                />
+
+                {/* Pagination */}
+                <Pagination
+                    pagination={pagination}
+                    onPageChange={(page) => setCurrentPage(page)}
                 />
             </div>
 

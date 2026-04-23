@@ -11,6 +11,7 @@ import EditSaleModal from '../components/sales/EditSaleModal';
 import ConfirmSaleModal from '../components/sales/ConfirmSaleModal';
 import CancelSaleModal from '../components/sales/CancelSaleModal';
 import DeleteSaleModal from '../components/sales/DeleteSaleModal';
+import Pagination from '../components/common/Pagination';
 
 const SalesPage = () => {
     // Use the correct param name from the route
@@ -25,6 +26,8 @@ const SalesPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [selectedSale, setSelectedSale] = useState(null);
+    const [pagination, setPagination] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
 
     // Modal states
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -61,7 +64,7 @@ const SalesPage = () => {
 
         setLoading(true);
         try {
-            const params = {};
+            const params = { page_number: currentPage };
             if (statusFilter !== 'all') params.status = statusFilter;
             if (debouncedSearch) params.search = debouncedSearch;
 
@@ -70,18 +73,18 @@ const SalesPage = () => {
                 getSalesSummary(projectId)
             ]);
 
-            console.log('Sales response data:', salesResponse.data); // Debug log
-
-            // Check if items are included in the sales list
-            salesResponse.data.forEach(sale => {
-                console.log(`Sale #${sale.id}:`, {
-                    item_count: sale.item_count,
-                    has_items: !!sale.items,
-                    items_length: sale.items?.length
+            if (salesResponse.data?.results !== undefined) {
+                setSales(salesResponse.data.results);
+                setPagination({
+                    count:       salesResponse.data.count,
+                    page_number: salesResponse.data.page_number,
+                    page_size:   salesResponse.data.page_size,
+                    total_pages: salesResponse.data.total_pages,
                 });
-            });
-
-            setSales(salesResponse.data);
+            } else {
+                setSales(salesResponse.data);
+                setPagination(null);
+            }
             setSummary(summaryResponse.data);
         } catch (err) {
             console.error('Failed to fetch sales:', err);
@@ -91,7 +94,11 @@ const SalesPage = () => {
         } finally {
             setLoading(false);
         }
-    }, [projectId, statusFilter, debouncedSearch, navigate]);
+    }, [projectId, statusFilter, debouncedSearch, navigate, currentPage]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [statusFilter, debouncedSearch]);
 
     useEffect(() => {
         if (projectId) {
@@ -287,7 +294,7 @@ const SalesPage = () => {
                         <div className="flex items-center gap-3">
                             <span className="text-sm text-gray-600">Total:</span>
                             <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-sm font-medium">
-                                {sales.length} sales
+                                {pagination ? pagination.count : sales.length} sales
                             </span>
                         </div>
 
@@ -340,6 +347,12 @@ const SalesPage = () => {
                         await handleRowClick(sale);
                         setShowDeleteModal(true);
                     }}
+                />
+
+                {/* Pagination */}
+                <Pagination
+                    pagination={pagination}
+                    onPageChange={(page) => setCurrentPage(page)}
                 />
             </div>
 
