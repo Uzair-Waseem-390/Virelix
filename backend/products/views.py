@@ -26,6 +26,7 @@ import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from backend.paginations import StandardResultsSetPagination
 
 from projects.selectors.project_selector import get_project_by_id
 from products.permissions import (
@@ -111,6 +112,7 @@ def _get_product_in_project(product_pk, project_pk):
 
 class ProductListCreateView(APIView):
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
 
     def get(self, request, project_pk):
         """
@@ -157,8 +159,14 @@ class ProductListCreateView(APIView):
                 products = get_all_products_for_project(project.pk)
             else:
                 products = get_active_products_for_project(project.pk)
+        
+        paginator = self.pagination_class()
+        paginated_products = paginator.paginate_queryset(products, request)
+        serializer = ProductListSerializer(paginated_products, many=True)
 
-        return Response(ProductListSerializer(products, many=True).data)
+        return paginator.get_paginated_response(serializer.data)
+
+        # return Response(ProductListSerializer(products, many=True).data)
 
     def post(self, request, project_pk):
         """Create a new product. Admin, manager, and staff can create."""

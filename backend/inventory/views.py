@@ -24,6 +24,7 @@ import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from backend.paginations import StandardResultsSetPagination
 
 from products.models import Product
 from projects.selectors.project_selector import get_project_by_id
@@ -118,6 +119,7 @@ def _get_inventory_in_project(inventory_pk, project_pk):
 
 class InventoryListCreateView(APIView):
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
 
     def get(self, request, project_pk):
         """
@@ -145,7 +147,15 @@ class InventoryListCreateView(APIView):
         else:
             inventory_qs = get_inventory_for_project(project.pk)
 
-        return Response(InventoryListSerializer(inventory_qs, many=True).data)
+        
+        paginator = self.pagination_class()
+        paginated_inventory = paginator.paginate_queryset(inventory_qs, request)
+        serializer = InventorySerializer(paginated_inventory, many=True)
+
+        return paginator.get_paginated_response(serializer.data)
+
+
+        # return Response(InventoryListSerializer(inventory_qs, many=True).data)
 
     def post(self, request, project_pk):
         """
@@ -186,6 +196,7 @@ class InventoryListCreateView(APIView):
             )
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        
 
         return Response(
             InventorySerializer(inventory).data,
