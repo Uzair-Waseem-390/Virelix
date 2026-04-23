@@ -584,20 +584,392 @@ def build_analyst_tools(project_id: int) -> list:
             f"  Est. Stock Value: {stock_value:.2f}"
         )
 
+    # ── 14. Latest N products (newest first) ─────────────────────────────────
+
+    @function_tool
+    def get_latest_products(limit: int = 10) -> str:
+        """
+        Get the most recently added products, newest first.
+        Use this for questions like:
+          "show me the last 10 products", "what products were recently added",
+          "newest products", "latest added items".
+
+        Args:
+            limit: Number of products to return. Default 10, max 50.
+
+        Returns:
+            List of products ordered by creation date descending.
+        """
+        from products.models import Product
+
+        limit = max(1, min(int(limit), 50))
+        qs = (
+            Product.objects
+            .filter(project_id=project_id)
+            .select_related("created_by")
+            .order_by("-created_at")[:limit]
+        )
+
+        if not qs:
+            return "No products found for this project."
+
+        lines = [f"Latest {limit} Added Products (newest first):"]
+        for i, p in enumerate(qs, 1):
+            date_str = p.created_at.strftime("%Y-%m-%d") if p.created_at else "?"
+            creator  = p.created_by.email if p.created_by else "N/A"
+            active   = "active" if p.is_active else "inactive"
+            lines.append(
+                f"  {i}. {p.name} | Added: {date_str} | Price: {p.price:.2f} | "
+                f"SKU: {p.sku or 'no-SKU'} | Cat: {p.category or 'uncategorised'} | "
+                f"{active} | By: {creator}"
+            )
+        return "\n".join(lines)
+
+    # ── 15. Latest N sales (most recent first) ────────────────────────────────
+
+    @function_tool
+    def get_latest_sales(limit: int = 10) -> str:
+        """
+        Get the most recent sales orders, newest first.
+        Use this for: "show last 5 sales", "recent orders", "latest transactions".
+
+        Args:
+            limit: Number of sales to return. Default 10, max 50.
+
+        Returns:
+            List of recent sales with date, customer, and amount.
+        """
+        from sales.models import Sale
+
+        limit = max(1, min(int(limit), 50))
+        qs = (
+            Sale.objects
+            .filter(project_id=project_id)
+            .select_related("created_by")
+            .order_by("-created_at")[:limit]
+        )
+
+        if not qs:
+            return "No sales found for this project."
+
+        lines = [f"Latest {limit} Sales (newest first):"]
+        for i, s in enumerate(qs, 1):
+            date_str  = s.created_at.strftime("%Y-%m-%d %H:%M") if s.created_at else "?"
+            customer  = s.customer_name or "Walk-in"
+            by        = s.created_by.email if s.created_by else "N/A"
+            lines.append(
+                f"  {i}. {date_str} | {customer} | "
+                f"Amount: {s.total_amount:.2f} | Status: {s.status} | By: {by}"
+            )
+        return "\n".join(lines)
+
+    # ── 16. Products by price range ───────────────────────────────────────────
+
+    @function_tool
+    def get_products_by_price_range(min_price: float = 0, max_price: float = 999999) -> str:
+        """
+        Get active products within a specific price range.
+        Use this for: "products under 500", "items between 100 and 200",
+        "expensive products over 1000", "cheap products".
+
+        Args:
+            min_price: Minimum price (inclusive). Default 0.
+            max_price: Maximum price (inclusive). Default unlimited.
+
+        Returns:
+            List of matching products sorted by price ascending.
+        """
+        from products.models import Product
+
+        qs = Product.objects.filter(
+            project_id  = project_id,
+            is_active   = True,
+            price__gte  = min_price,
+            price__lte  = max_price,
+        ).order_by("price")
+
+        if not qs.exists():
+            return f"No active products found in price range {min_price:.2f} – {max_price:.2f}."
+
+        lines = [f"Products priced between {min_price:.2f} and {max_price:.2f}:"]
+        for p in qs:
+            lines.append(
+                f"  • {p.name} | Price: {p.price:.2f} | "
+                f"Cost: {p.cost_price:.2f if p.cost_price else 'N/A'} | "
+                f"SKU: {p.sku or 'no-SKU'} | Cat: {p.category or 'N/A'}"
+            )
+        return "\n".join(lines)
+
+    # ── 17. Single product detail (by name search) ────────────────────────────
+
+    @function_tool
+    def get_product_detail(product_name: str) -> str:
+        """
+        Get detailed information about a specific product by name (partial match).
+        Includes pricing, stock level, sales history summary, and creator info.
+        Use for: "tell me about Product X", "details for item Y", "info on SKU Z".
+
+        Args:
+            product_name: Full or partial product name to search (case-insensitive).
+
+        Returns:
+            Detailed product profile.
+        """
+        from products.models import Product
+        from inventory.models import Inventory
+        from sales.models import SaleItem, SaleStatus
+        from django.db.models import Sum
+
+        qs = Product.objects.filter(
+            project_id       = project_id,
+            name__icontains  = product_name,
+        ).select_related("created_by")
+
+        if not qs.exists():
+            return f"No product found matching '{product_name}'."
+
+        lines = []
+        for p in qs[:3]:   # show up to 3 matches
+            creator = p.created_by.email if p.created_by else "N/A"
+            role    = p.created_by.role  if p.created_by else "N/A"
+
+            # Stock
+            try:
+                inv = Inventory.objects.get(project_id=project_id, product=p)
+                stock_info = (
+                    f"qty={inv.quantity} | threshold={inv.low_stock_threshold} | "
+                    f"location={inv.location or 'N/A'}"
+                )
+                if inv.is_out_of_stock:
+                    stock_info += " ⚠ OUT OF STOCK"
+                elif inv.is_low_stock:
+                    stock_info += " ⚠ LOW STOCK"
+            except Inventory.DoesNotExist:
+                stock_info = "No inventory record"
+
+            # Sales
+            sold_agg = SaleItem.objects.filter(
+                product=p,
+                sale__project_id=project_id,
+                sale__status    =SaleStatus.CONFIRMED,
+            ).aggregate(total_qty=Sum("quantity"), total_rev=Sum("total_price"))
+
+            sold_qty = sold_agg["total_qty"] or 0
+            sold_rev = sold_agg["total_rev"] or 0
+
+            lines.append(
+                f"Product: {p.name}\n"
+                f"  SKU       : {p.sku or 'no-SKU'}\n"
+                f"  Category  : {p.category or 'N/A'}\n"
+                f"  Unit      : {p.unit}\n"
+                f"  Price     : {p.price:.2f}\n"
+                f"  Cost      : {p.cost_price:.2f if p.cost_price else 'N/A'}\n"
+                f"  Status    : {'Active' if p.is_active else 'Inactive'}\n"
+                f"  Created by: {creator} ({role})\n"
+                f"  Added on  : {p.created_at.strftime('%Y-%m-%d') if p.created_at else 'N/A'}\n"
+                f"  Stock     : {stock_info}\n"
+                f"  Total sold: {sold_qty} units | Revenue: {sold_rev:.2f}\n"
+                f"  Description: {p.description or 'N/A'}"
+            )
+
+        return "\n\n".join(lines)
+
+    # ── 18. Customer leaderboard ──────────────────────────────────────────────
+
+    @function_tool
+    def get_customer_leaderboard(limit: int = 10) -> str:
+        """
+        Get the top customers ranked by total spend (confirmed sales only).
+        Use for: "who are our best customers", "top 5 buyers",
+        "most valuable customers", "customer ranking".
+
+        Args:
+            limit: Number of top customers to show. Default 10, max 50.
+
+        Returns:
+            Ranked list of customers with order count and total spend.
+        """
+        from django.db.models import Sum, Count
+        from sales.models import Sale, SaleStatus
+
+        limit = max(1, min(int(limit), 50))
+
+        results = (
+            Sale.objects
+            .filter(project_id=project_id, status=SaleStatus.CONFIRMED)
+            .values("customer_name")
+            .annotate(
+                total_spend  = Sum("total_amount"),
+                order_count  = Count("id"),
+            )
+            .order_by("-total_spend")[:limit]
+        )
+
+        if not results:
+            return "No confirmed sales found to build customer leaderboard."
+
+        lines = [f"Top {limit} Customers by Total Spend:"]
+        for i, r in enumerate(results, 1):
+            name = r["customer_name"] or "Walk-in"
+            lines.append(
+                f"  {i}. {name} | "
+                f"Orders: {r['order_count']} | "
+                f"Total spend: {r['total_spend']:.2f}"
+            )
+        return "\n".join(lines)
+
+    # ── 19. Product sales performance ─────────────────────────────────────────
+
+    @function_tool
+    def get_product_performance(limit: int = 10, order_by: str = "revenue") -> str:
+        """
+        Get all products ranked by sales performance.
+        Use for: "which products sell the most", "product performance report",
+        "what's the least sold item", "product ranking by quantity".
+
+        Args:
+            limit:    Number of products to show. Default 10, max 50.
+            order_by: "revenue" (default) or "quantity" — which metric to rank by.
+
+        Returns:
+            Products ranked by chosen metric with units and revenue.
+        """
+        from django.db.models import Sum
+        from sales.models import SaleItem, SaleStatus
+
+        limit    = max(1, min(int(limit), 50))
+        sort_key = "total_qty" if order_by.lower() == "quantity" else "total_revenue"
+
+        results = (
+            SaleItem.objects
+            .filter(sale__project_id=project_id, sale__status=SaleStatus.CONFIRMED)
+            .values("product__name")
+            .annotate(
+                total_revenue = Sum("total_price"),
+                total_qty     = Sum("quantity"),
+            )
+            .order_by(f"-{sort_key}")[:limit]
+        )
+
+        if not results:
+            return "No sales data found to rank products."
+
+        label = "Quantity Sold" if sort_key == "total_qty" else "Revenue"
+        lines = [f"Product Performance (ranked by {label}):"]
+        for i, r in enumerate(results, 1):
+            lines.append(
+                f"  {i}. {r['product__name']} | "
+                f"Units sold: {r['total_qty']} | "
+                f"Revenue: {r['total_revenue']:.2f}"
+            )
+        return "\n".join(lines)
+
+    # ── 20. Daily sales trend for last N days ─────────────────────────────────
+
+    @function_tool
+    def get_daily_sales_trend(days: int = 7) -> str:
+        """
+        Get a day-by-day sales breakdown for the last N days.
+        Use for: "daily sales this week", "sales per day", "today's sales",
+        "yesterday's revenue", "sales trend last 7 days".
+
+        Args:
+            days: Number of past days to include. Default 7, max 90.
+
+        Returns:
+            Daily confirmed sales count and revenue.
+        """
+        from datetime import timedelta
+        from django.utils import timezone
+        from django.db.models import Sum, Count
+        from sales.models import Sale, SaleStatus
+
+        days = max(1, min(int(days), 90))
+        now  = timezone.now()
+        lines = [f"Daily Sales Trend (last {days} days):"]
+
+        for offset in range(days - 1, -1, -1):
+            day_start = (now - timedelta(days=offset)).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            day_end = day_start + timedelta(days=1)
+
+            agg = Sale.objects.filter(
+                project_id        = project_id,
+                status            = SaleStatus.CONFIRMED,
+                confirmed_at__gte = day_start,
+                confirmed_at__lt  = day_end,
+            ).aggregate(count=Count("id"), total=Sum("total_amount"))
+
+            label   = day_start.strftime("%Y-%m-%d (%a)")
+            count   = agg["count"] or 0
+            revenue = agg["total"] or 0
+
+            suffix = " ← today" if offset == 0 else ""
+            lines.append(f"  {label}: {count} sales | {revenue:.2f}{suffix}")
+
+        return "\n".join(lines)
+
+    # ── 21. Inactive / archived products ──────────────────────────────────────
+
+    @function_tool
+    def get_inactive_products() -> str:
+        """
+        Get all inactive (archived/deactivated) products in the project.
+        Use for: "show inactive products", "archived items", "deleted products",
+        "deactivated products".
+
+        Returns:
+            List of inactive products with dates and creator info.
+        """
+        from products.models import Product
+
+        qs = Product.objects.filter(
+            project_id=project_id,
+            is_active  =False,
+        ).select_related("created_by").order_by("-created_at")
+
+        if not qs.exists():
+            return "No inactive products found. All products are currently active."
+
+        lines = [f"Inactive Products ({qs.count()} total):"]
+        for p in qs:
+            creator  = p.created_by.email if p.created_by else "N/A"
+            date_str = p.created_at.strftime("%Y-%m-%d") if p.created_at else "?"
+            lines.append(
+                f"  • {p.name} | SKU: {p.sku or 'no-SKU'} | "
+                f"Price: {p.price:.2f} | Added: {date_str} | By: {creator}"
+            )
+        return "\n".join(lines)
+
     # ── Return all tools — order matters: date helper first ──────────────────
     return [
-        get_current_date,           # MUST be first — resolves 'today', 'this month', etc.
+        get_current_date,              # MUST be first — resolves 'today', 'this month', etc.
+        # ── Sales ──────────────────────────────────────────────────────────────
         get_sales_data,
         get_sales_by_date_range,
         get_sales_by_status,
         get_sales_by_customer,
         get_sales_by_creator_role,
+        get_latest_sales,
+        get_daily_sales_trend,
+        get_customer_leaderboard,
+        # ── Products ───────────────────────────────────────────────────────────
         get_products_data,
         get_products_by_creator_role,
         get_products_by_category,
+        get_products_by_price_range,
+        get_latest_products,
+        get_product_detail,
+        get_inactive_products,
+        # ── Performance ────────────────────────────────────────────────────────
         get_top_selling_products,
+        get_product_performance,
+        # ── Inventory ──────────────────────────────────────────────────────────
         get_inventory_data,
         get_low_stock_products,
         get_stock_movements,
+        # ── Summary ────────────────────────────────────────────────────────────
         get_revenue_summary,
     ]
+
